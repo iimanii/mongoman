@@ -17,6 +17,7 @@ Must also include mongo-java-driver in your project
 - Only **non-static public** fields get stored
 - **non-static final public** fields are used as keys to load and store the objects and marked as unique index (they cannot repeat)
 - Use load() and store() to load and save the object
+- Your class must implement a 0-argument constructor
 
 ##### Example
 
@@ -31,10 +32,17 @@ class Car extends Base {
     public static String collectionName = "car"
 
     public Car(...) {
-        super(kind);
+        super(collectionName);
         myId = ....
         .....
     }
+    
+    // must implement a 0-argument constructor
+    public Car() {
+        super(collectionName);
+        ....
+    }
+        
 }
 ```
 
