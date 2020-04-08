@@ -71,40 +71,4 @@ public class Key {
     public String toString() {
         return data.toJson();
     }
-
-//    public Key(String kind) {
-//        this.id = String.format("%016X", System.currentTimeMillis()) + String.format("%016X", rand.nextLong());
-//        this.kind = kind;
-//    }
-//    
-//    
-//    public Key(JSONObject obj) throws JSONException {
-//        this.id = obj.getString(__ID);
-//        this.kind = obj.getString(__KIND);
-//    }
-//    
-//    
-//    public JSONObject toJSON() throws JSONException {
-//        JSONObject result = new JSONObject();
-//        result.put(__ID, id);
-//        result.put(__KIND, kind);
-//        
-//        return result;
-//    }
-//    
-//    public JSONObject toQueryJSON() throws JSONException {
-//        JSONObject result = new JSONObject();
-//        result.put(__KEY, toJSON());
-//        
-//        return result;
-//    }
-//    
-//    @Override
-//    public String toString() {
-//        return String.format("%s_%s", kind, id);
-//    }
-//    
-//    public boolean equals(Key key) {
-//        return id.equals(key.id) && kind.equals(key.kind);
-//    }
 }
