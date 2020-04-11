@@ -65,7 +65,8 @@ Not all fields can be serialized into mongodb, the following are the ones guaran
 - java.util.List
 - java.util.Map
 - java.util.Date
-- Any object that extends mongoman.Base
+- Any class that extends mongoman.Base
+- An array of any class that extends mongoman.Base
 
 #### Using nested objects
 Mongoman allows the usage of nested Base classes

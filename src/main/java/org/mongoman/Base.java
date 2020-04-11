@@ -31,6 +31,11 @@ import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Modifier;
+import java.lang.reflect.ParameterizedType;
+import java.lang.reflect.Type;
+import java.util.ArrayList;
+import java.util.LinkedList;
+import java.util.List;
 import org.bson.types.ObjectId;
 
 /**
@@ -156,7 +161,7 @@ public abstract class Base {
                 Object value = data.get(name);
                 
                 try {
-                    field.set(this, convertValueToType(value, field.getType()));
+                    field.set(this, convertDBToField(value, field));
                 } catch (IllegalAccessException | IllegalArgumentException ex) {
                     throw new MongomanException(ex);
                 }
@@ -186,14 +191,7 @@ public abstract class Base {
 
             try {
                 Object value = field.get(this);
-
-                if(value instanceof Base)
-                    if(fullSave)
-                        data.append(name, ((Base) value).toDBObject());
-                    else
-                        data.append(name, ((Base) value).getKey().toDBObject());                        
-                else
-                    data.append(field.getName(), value);
+                data.append(name, convertFieldToDB(value));
             } catch (IllegalAccessException | IllegalArgumentException ex) {
                 throw new MongomanException(ex);
             }
@@ -204,11 +202,19 @@ public abstract class Base {
     
     /**
      * loads item default datastore 
-     * @param store
      * @return true on success
      */
     public boolean load() {
         return load(Datastore.getDefaultService());
+    }
+    
+    /**
+     * loads item from default datastore 
+     * @param loadNested if true will also load all nested Base fields
+     * @return true on success
+     */
+    public boolean load(boolean loadNested) {
+        return load(Datastore.getDefaultService(), loadNested);
     }
     
     /**
@@ -217,6 +223,16 @@ public abstract class Base {
      * @return true on success
      */
     public boolean load(Datastore store) {
+        return load(store, false);
+    }
+    
+    /**
+     * loads item datastore 
+     * @param store
+     * @param loadNested if true will also load all nested Base fields
+     * @return true on success
+     */
+    public boolean load(Datastore store, boolean loadNested) {
         DBObject data = store.get(getKey());
         
         if(data == null)
@@ -224,7 +240,7 @@ public abstract class Base {
         
         fromDBObject(data);
         
-        return loadNested(store);
+        return loadNested ? loadNested(store) : true;
     }
     
     protected boolean loadNested(Datastore store) {
@@ -250,17 +266,36 @@ public abstract class Base {
      * @return 
      */
     public boolean save() {
-        return save(Datastore.getDefaultService());
+        return save(Datastore.getDefaultService(), false);
+    }
+    
+    /**
+     * saves the entity to default datastore 
+     * @param saveNested if true all Base fields will also get saved in their collections
+     * @return 
+     */
+    public boolean save(boolean saveNested) {
+        return save(Datastore.getDefaultService(), saveNested);
+    }
+    
+    /**
+     * saves the entity to default datastore 
+     * @param store
+     * @return 
+     */
+    public boolean save(Datastore store) {
+        return save(store, false);
     }
     
     /**
      * saves the entity to datastore 
      * @param store
+     * @param saveNested if true all Base fields will also get saved in their collections
      * @return 
      */
-    public boolean save(Datastore store) {
+    public boolean save(Datastore store, boolean saveNested) {
         DBObject e = toDBObject();
-        return store.put(kind, e) & saveNested(store);
+        return store.put(kind, e) & (saveNested ? saveNested(store) : true);
     }
     
 
@@ -300,25 +335,54 @@ public abstract class Base {
         return _id != null;
     }
     
-    private Object convertValueToType(Object value, Class<?> clazz) {
+    /* Helper functions for loading */
+    private Object convertDBToField(Object value, Field field) {
         if(value == null)
             return null;
+        
+        Class<?> clazz = field.getType();
         
         if(Base.class.isAssignableFrom(clazz))
            return createInstance((Class<? extends Base>)clazz, (DBObject) value);
         
         if(value instanceof BasicDBList) {
-            if(!clazz.isArray())
+            BasicDBList list = (BasicDBList)value;
+            
+            if(list.isEmpty())
                 return value;
             
             Object[] data = ((BasicDBList)value).toArray();
             
-            Object array = Array.newInstance(clazz.getComponentType(), data.length);
+            if(List.class.isAssignableFrom(clazz)) {
+                if(isGenericBaseType(field.getGenericType())) {
+                    List<Base> result = new ArrayList<>();
+                    
+                    for(Object o : data)
+                        if(o != null)
+                            result.add(createInstance((Class<? extends Base>)clazz, (DBObject) value));
+                    
+                    return result;
+                } else
+                    return value;
+            }
             
-            if(!clazz.getComponentType().isPrimitive())
-                System.arraycopy(data, 0, (Object[]) array, 0, data.length);
-            else
+            if(!clazz.isArray())
+                return value;
+            
+            Object array = Array.newInstance(clazz.getComponentType(), data.length);
+            Class<?> component = clazz.getComponentType();
+            
+            if(!component.isPrimitive()) {
+                if(Base.class.isAssignableFrom(component)) {
+                    Base[] a = (Base[]) array;
+                    for(int i=0; i < data.length; i++)
+                        if(data[i] != null)
+                            a[i] = createInstance((Class<? extends Base>)clazz.getComponentType(), (DBObject) data[i]);
+                } else
+                    System.arraycopy(data, 0, (Object[]) array, 0, data.length);
+            } else
                 copyPrimitiveArray(data, array);
+            
             return array;
         }
         
@@ -404,4 +468,53 @@ public abstract class Base {
         
         return value;
     }
+
+    private boolean isGenericBaseType(Type genericType) {
+        if (genericType instanceof ParameterizedType) {
+            Type[] types = ((ParameterizedType)genericType).getActualTypeArguments();
+            
+            return types.length > 0 && Base.class.isAssignableFrom(types[0].getClass());
+        }
+        
+        return false;
+    }
+    
+    /* Helper functions for saving */
+    private Object convertFieldToDB(Object value) {
+        if(value == null)
+            return null;
+        
+        if(value instanceof Base)
+            return convertBaseToDB((Base) value);
+        
+        if (value instanceof Base[]) {
+            BasicDBList list = new BasicDBList();
+            for(Base b : (Base[])value)
+                list.add(convertBaseToDB((Base) b));
+            
+            return list;
+        }
+        
+        if (value instanceof List) {
+            List l = (List)value; 
+
+            if(l.size() > 0 && Base.class.isAssignableFrom(l.get(0).getClass())) {
+                BasicDBList list = new BasicDBList();
+                for(Base b : (List<Base>)l)
+                    list.add(convertBaseToDB((Base) b));
+                
+                return list;
+            }
+        }
+        
+        return value;
+    }
+    
+    private DBObject convertBaseToDB(Base obj) {
+        if(obj == null)
+            return null;
+        
+        return fullSave ? obj.toDBObject() : obj.getKey().toDBObject();
+    }
+
 }
