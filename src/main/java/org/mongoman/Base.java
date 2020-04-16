@@ -37,6 +37,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import org.bson.types.ObjectId;
 
@@ -328,6 +329,29 @@ public abstract class Base {
      */
     public boolean isLoaded() {
         return _id != null;
+    }
+    
+    @Override
+    public boolean equals(Object object) {
+        if(object == this)
+            return true;
+        
+        if (object == null)
+            return false;
+
+        System.out.println("equals: " + object.getClass());
+
+        if(!(object instanceof Base))
+            return false;
+        
+        Base base = (Base) object;
+        
+        return getKey().equals(base.getKey());
+    }
+
+    @Override
+    public int hashCode() {
+        return getKey().hashCode();
     }
     
     /* Helper functions for loading */

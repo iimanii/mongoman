@@ -26,6 +26,8 @@ package org.mongoman;
 import com.mongodb.BasicDBObject;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
+import java.util.Arrays;
+import java.util.Objects;
 
 /**
  *
@@ -34,6 +36,8 @@ import java.lang.reflect.Modifier;
 public class Key {
     public final String kind;
     private final BasicDBObject data;
+    
+    private final int hashCode;
     
     protected Key(Base object) throws IllegalArgumentException, IllegalAccessException {
         kind = object.getKind();
@@ -61,6 +65,8 @@ public class Key {
             else
                 data.append(field.getName(), value);
         }
+        
+        hashCode = Arrays.hashCode(new int[]{kind.hashCode(), data.hashCode()});
     }
         
     protected BasicDBObject toDBObject() {
@@ -70,5 +76,31 @@ public class Key {
     @Override
     public String toString() {
         return data.toJson();
+    }
+    
+
+    @Override
+    public int hashCode() {
+        return hashCode;
+    }
+   
+
+    @Override
+    public boolean equals(Object object) {
+        if (this == object)
+            return true;
+
+        if (object == null)
+            return false;
+
+        if (!(object instanceof Key))
+            return false;
+
+        Key key = (Key) object;
+        
+        if(!Objects.equals(kind, key.kind))
+            return false;
+        
+        return data.equals(key.data);
     }
 }
