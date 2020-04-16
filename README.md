@@ -63,6 +63,7 @@ Not all fields can be serialized into mongodb, the following are the ones guaran
 - All primitive type arrays (int[], byte[], float[], ....)
 - String
 - java.util.List
+- java.util.Set
 - java.util.Map
 - java.util.Date
 - Any class that extends mongoman.Base

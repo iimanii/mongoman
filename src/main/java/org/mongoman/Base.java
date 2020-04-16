@@ -34,8 +34,10 @@ import java.lang.reflect.Modifier;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
-import java.util.LinkedList;
+import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import org.bson.types.ObjectId;
 
 /**
@@ -49,17 +51,11 @@ public abstract class Base {
     /* kind */
     private final String kind;
     
+    /* Options */
+    private Options options;
+    
     /* Key */
     private Key key;
-    
-    /* if true, all fields for nested objects will be included when saving this objects
-       otherwise only keys for nested objects will be included
-    */
-    private final boolean fullSave;
-    
-    /* enable this to remove extra/obsolete properties found in database object 
-       and are not defined in the class */
-    protected final boolean ignoreUnknownProperties;
     
     /* whether or not data was loaded from db */
     private ObjectId _id;
@@ -68,18 +64,13 @@ public abstract class Base {
     private DBObject loaded;
     
     public Base(String collectionName) {
-        this(collectionName, false, false);
+        this(collectionName, Options.getDefaultOptions());
     }
 
-    public Base(String collectionName, boolean full) {
-        this(collectionName, full, false);
-    }
-
-    public Base(String collectionName, boolean full, boolean ignore) {
+    public Base(String collectionName, Options options) {
         Kind.register(collectionName, this.getClass());
         this.kind = collectionName;
-        this.fullSave = full;
-        this.ignoreUnknownProperties = ignore;
+        this.options = new Options(options);
     }
     
     final public Key getKey() {
@@ -105,7 +96,7 @@ public abstract class Base {
             item.fromDBObject(data);
             return item;
         } catch(NoSuchMethodException ex) {
-            throw new MongomanException("All subclasses of Base Class must implement a constructor that takes no arguments");
+            throw new MongomanException(clazz.getName() + " All subclasses of Base Class must implement a constructor that takes no arguments");
         } catch(IllegalAccessException | IllegalArgumentException | InstantiationException | InvocationTargetException ex) {
             throw new MongomanException(ex);
         }
@@ -118,7 +109,7 @@ public abstract class Base {
             T item = (T)constructor.newInstance();
             return item;
         } catch(NoSuchMethodException ex) {
-            throw new MongomanException("All subclasses of Base Class must implement a constructor that takes no arguments");
+            throw new MongomanException(clazz.getName() + " All subclasses of Base Class must implement a constructor that takes no arguments");
         } catch(IllegalAccessException | IllegalArgumentException | InstantiationException | InvocationTargetException ex) {
             throw new MongomanException(ex);
         }
@@ -191,6 +182,10 @@ public abstract class Base {
 
             try {
                 Object value = field.get(this);
+                
+                if(options.ignoreNull && value == null)
+                    continue;
+                
                 data.append(name, convertFieldToDB(value));
             } catch (IllegalAccessException | IllegalArgumentException ex) {
                 throw new MongomanException(ex);
@@ -347,46 +342,68 @@ public abstract class Base {
         
         if(value instanceof BasicDBList) {
             BasicDBList list = (BasicDBList)value;
+
+            if(Collection.class.isAssignableFrom(clazz))
+                return convertDBToCollectionField(list, field);
             
-            if(list.isEmpty())
-                return value;
+            if(clazz.isArray())
+                return convertDBToArrayField(list, clazz);
             
-            Object[] data = ((BasicDBList)value).toArray();
-            
-            if(List.class.isAssignableFrom(clazz)) {
-                if(isGenericBaseType(field.getGenericType())) {
-                    List<Base> result = new ArrayList<>();
-                    
-                    for(Object o : data)
-                        if(o != null)
-                            result.add(createInstance((Class<? extends Base>)clazz, (DBObject) value));
-                    
-                    return result;
-                } else
-                    return value;
-            }
-            
-            if(!clazz.isArray())
-                return value;
-            
-            Object array = Array.newInstance(clazz.getComponentType(), data.length);
-            Class<?> component = clazz.getComponentType();
-            
-            if(!component.isPrimitive()) {
-                if(Base.class.isAssignableFrom(component)) {
-                    Base[] a = (Base[]) array;
-                    for(int i=0; i < data.length; i++)
-                        if(data[i] != null)
-                            a[i] = createInstance((Class<? extends Base>)clazz.getComponentType(), (DBObject) data[i]);
-                } else
-                    System.arraycopy(data, 0, (Object[]) array, 0, data.length);
-            } else
-                copyPrimitiveArray(data, array);
-            
-            return array;
+            return value;
         }
         
         return clazz.isPrimitive() ? convertPrimitiveType(value, clazz) : value;
+    }
+    
+    private Collection convertDBToCollectionField(BasicDBList list, Field field) {
+        Object[] data = list.toArray();
+        Class<?> clazz = field.getType();
+        Class<?> base = getGenericBaseType(field.getGenericType());
+        
+        if(List.class.isAssignableFrom(clazz)) {
+            if(base == null)
+                return list;
+
+            List<Base> result = new ArrayList<>();
+
+            for(Object o : data)
+                if(o != null)
+                    result.add(createInstance((Class<? extends Base>) base, (DBObject) o));
+
+            return result;
+        } else if(Set.class.isAssignableFrom(clazz)) {
+            if(base == null)
+                return new HashSet<>(list);
+
+            Set<Base> result = new HashSet<>();
+
+            for(Object o : data)
+                if(o != null)
+                    result.add(createInstance((Class<? extends Base>) base, (DBObject) o));
+
+            return result;            
+        }
+        
+        return list;
+    }
+    
+    private Object convertDBToArrayField(BasicDBList list, Class<?> clazz) {
+        Object[] data = list.toArray();
+        Object array = Array.newInstance(clazz.getComponentType(), data.length);
+        Class<?> component = clazz.getComponentType();
+
+        if(!component.isPrimitive()) {
+            if(Base.class.isAssignableFrom(component)) {
+                Base[] a = (Base[]) array;
+                for(int i=0; i < data.length; i++)
+                    if(data[i] != null)
+                        a[i] = createInstance((Class<? extends Base>)clazz.getComponentType(), (DBObject) data[i]);
+            } else
+                System.arraycopy(data, 0, (Object[]) array, 0, data.length);
+        } else
+            copyPrimitiveArray(data, array);
+
+        return array;
     }
     
     private void copyPrimitiveArray(Object[] src, Object dst) {
@@ -469,14 +486,20 @@ public abstract class Base {
         return value;
     }
 
-    private boolean isGenericBaseType(Type genericType) {
+    private Class<?> getGenericBaseType(Type genericType) {
         if (genericType instanceof ParameterizedType) {
             Type[] types = ((ParameterizedType)genericType).getActualTypeArguments();
             
-            return types.length > 0 && Base.class.isAssignableFrom(types[0].getClass());
+            if(types.length == 0)
+                return null;
+            
+            Type type0 = types[0];
+            
+            if(type0 instanceof Class && Base.class.isAssignableFrom((Class<?>)types[0]))
+                return (Class<?>)type0;
         }
         
-        return false;
+        return null;
     }
     
     /* Helper functions for saving */
@@ -495,13 +518,13 @@ public abstract class Base {
             return list;
         }
         
-        if (value instanceof List) {
-            List l = (List)value; 
+        if (value instanceof Collection) {
+            Collection l = (Collection)value; 
 
-            if(l.size() > 0 && Base.class.isAssignableFrom(l.get(0).getClass())) {
+            if(l.size() > 0 && Base.class.isAssignableFrom(l.iterator().next().getClass())) {
                 BasicDBList list = new BasicDBList();
-                for(Base b : (List<Base>)l)
-                    list.add(convertBaseToDB((Base) b));
+                for(Base b : (Collection<Base>)l)
+                    list.add(convertBaseToDB(b));
                 
                 return list;
             }
@@ -514,7 +537,7 @@ public abstract class Base {
         if(obj == null)
             return null;
         
-        return fullSave ? obj.toDBObject() : obj.getKey().toDBObject();
+        return options.fullSave ? obj.toDBObject() : obj.getKey().toDBObject();
     }
 
 }
