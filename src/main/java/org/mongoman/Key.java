@@ -27,7 +27,11 @@ import com.mongodb.BasicDBObject;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Objects;
+import org.mongoman.Query.Filter;
 
 /**
  *
@@ -35,13 +39,23 @@ import java.util.Objects;
  */
 public class Key {
     public final String kind;
-    private final BasicDBObject data;
+    protected final BasicDBObject data;
+    protected final BasicDBObject filterData;
     
     private final int hashCode;
     
+    private Filter filter;
+    
     protected Key(Base object) throws IllegalArgumentException, IllegalAccessException {
         kind = object.getKind();
-        data = new BasicDBObject();
+        data = toDBObject(object);
+        filterData = toFilterDBObject(data);
+        
+        hashCode = Arrays.hashCode(new int[]{kind.hashCode(), data.hashCode()});
+    }
+        
+    private BasicDBObject toDBObject(Base object) throws IllegalArgumentException, IllegalAccessException {
+        BasicDBObject result = new BasicDBObject();
         
         /* Get all public fields of the class */
         Field[] fields = object.getClass().getFields();
@@ -61,16 +75,52 @@ public class Key {
             
             /* in case of a Base class .. only use its key */
             if(value instanceof Base)
-                data.append(name, ((Base) value).getKey().data);
+                result.append(name, ((Base) value).getKey().data);
             else
-                data.append(field.getName(), value);
+                result.append(field.getName(), value);
+        }
+        return result;
+    }
+    
+    /**
+     * insures that nested objects are referenced correctly 
+     * -> field.subfield = value
+     * @param data
+     * @return 
+     */
+    private BasicDBObject toFilterDBObject(BasicDBObject data) {
+        BasicDBObject result = new BasicDBObject();
+        
+        for(Entry<String, Object> e : data.entrySet()) {
+            String key = e.getKey();
+            Object value = e.getValue();
+            
+            if(value instanceof BasicDBObject) {
+                Map<String, Object> inner = toFilterDBObject((BasicDBObject) value);
+                for(Entry<String, Object> e0 : inner.entrySet()) {
+                    result.put(key + "." + e0.getKey(), e0.getValue());
+                }
+            } else
+                result.put(key, value);
         }
         
-        hashCode = Arrays.hashCode(new int[]{kind.hashCode(), data.hashCode()});
+        return result;
     }
+    
+    public Filter toFilter() {
+        if(filter != null)
+            return filter;
         
-    protected BasicDBObject toDBObject() {
-        return data;
+        Filter[] filters = new Filter[filterData.size()];
+        int i = 0;
+        
+        for(Entry<String, Object> e : filterData.entrySet()) {
+            filters[i++] = new Filter(e.getKey(), Query.FilterOperator.EQUAL, e.getValue());
+        }
+        
+        filter = new Filter(Query.FilterOperator.AND, filters);
+        
+        return filter;
     }
     
     @Override
@@ -103,4 +153,5 @@ public class Key {
         
         return data.equals(key.data);
     }
+
 }

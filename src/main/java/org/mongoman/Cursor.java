@@ -36,11 +36,13 @@ public class Cursor <T extends Base> {
     DBCursor cursor;
     Datastore datastore;
     Class<? extends Base> clazz;
+    boolean loadNested;
     
-    protected Cursor(DBCursor cursor, Class<? extends Base> clazz, Datastore datastore) {
+    protected Cursor(DBCursor cursor, Class<? extends Base> clazz, Datastore datastore, boolean loadNested) {
         this.cursor = cursor;
         this.clazz = clazz;
         this.datastore = datastore;
+        this.loadNested = loadNested;
     }
     
     /* Counts the number of objects matching the query */
@@ -100,7 +102,8 @@ public class Cursor <T extends Base> {
             return null;
         
         T instance = T.createInstance(clazz, data);
-        instance.loadNested(datastore);
+        if(loadNested)
+            instance.loadNested(datastore);
         
         return instance;
     }

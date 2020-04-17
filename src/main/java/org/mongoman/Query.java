@@ -114,6 +114,7 @@ public class Query <T extends Base> {
     private final String kind;
     private boolean keysOnly;
     private Filter filter;
+    private boolean loadNested;
     
     private final LinkedHashMap<String, SortDirection> sort;
     private final HashSet<String> projection;
@@ -130,6 +131,7 @@ public class Query <T extends Base> {
         this.clazz = clazz;
         this.kind = Kind.getKind(clazz);
         this.keysOnly = false;
+        this.loadNested = false;
         this.sort = new LinkedHashMap<>();
         this.projection = new HashSet<>();
         this.ignore = new HashSet<>();
@@ -165,6 +167,11 @@ public class Query <T extends Base> {
         return this;
     }
     
+    public Query setLoadNested(boolean loadNested) {
+        this.loadNested = loadNested;
+        return this;
+    }
+    
     public Query addSort(String field, SortDirection dir) {
         sort.put(field, dir);
         
@@ -194,7 +201,7 @@ public class Query <T extends Base> {
     }
 
     public Cursor<T> execute(Datastore datastore) {
-        return new Cursor<>(datastore.query(this, skip, batch, limit), clazz, datastore);
+        return new Cursor<>(datastore.query(this, skip, batch, limit), clazz, datastore, loadNested);
     }
     
     public String getKind() {
@@ -211,6 +218,9 @@ public class Query <T extends Base> {
     public BasicDBObject getProjection() {
         if(computedProjection != null)
             return computedProjection;
+        
+        if(keysOnly)
+            return Base.getKeyFields(clazz);
         
         computedProjection = new BasicDBObject();
         
@@ -244,7 +254,7 @@ public class Query <T extends Base> {
         return limit;
     }    
     
-    public int setBatch() {
+    public int getBatch() {
         return batch;
     }
 }

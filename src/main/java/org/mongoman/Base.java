@@ -37,7 +37,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Objects;
 import java.util.Set;
 import org.bson.types.ObjectId;
 
@@ -116,7 +115,7 @@ public abstract class Base {
         }
     }
     
-    protected static DBObject getUniqueIndexes(Class<? extends Base> clazz) {
+    protected static BasicDBObject getKeyFields(Class<? extends Base> clazz) {
         BasicDBObject data = new BasicDBObject();
         
         /* Get all public fields of the class */
@@ -132,8 +131,15 @@ public abstract class Base {
                 continue;
             
             String name = field.getName();
+            Class<?> field_class = field.getType();
             
-            data.append(name, 1);
+            if(Base.class.isAssignableFrom(field_class)) {
+                BasicDBObject inner = (BasicDBObject) getKeyFields((Class<? extends Base>) field_class);
+                for(String n : inner.keySet()) {
+                    data.append(name + "." + n, 1);
+                }
+            } else
+                data.append(name, 1);
         }
         
         return data;
@@ -197,6 +203,23 @@ public abstract class Base {
     }
     
     /**
+     * Uses key to checks if object exists in db
+     * @return true if item is stored in db
+     */
+    public boolean exists() {
+        return exists(Datastore.getDefaultService());
+    }
+        
+    /**
+     * Uses key to checks if object exists in db
+     * @param store
+     * @return true if item is stored in db
+     */
+    public boolean exists(Datastore store) {
+        return store.exists(getKey());
+    }
+    
+    /**
      * loads item default datastore 
      * @return true on success
      */
@@ -247,7 +270,10 @@ public abstract class Base {
         for(Field field : fields) {
             if(Base.class.isAssignableFrom(field.getType())) {
                 try {
-                    result &= ((Base) field.get(this)).load();
+                    Base base = (Base) field.get(this);
+                    
+                    if(base != null)
+                        result &= base.load();
                 } catch (IllegalAccessException | IllegalArgumentException ex) {
                     throw new MongomanException(ex);
                 }
@@ -302,8 +328,11 @@ public abstract class Base {
         Field[] fields = this.getClass().getFields();
         for(Field field : fields) {
             if(Base.class.isAssignableFrom(field.getType())) {
-                try {
-                    result &= ((Base) field.get(this)).save();
+                try {                    
+                    Base base = (Base) field.get(this);
+    
+                    if(base != null)
+                        result &= base.save(true);
                 } catch (IllegalAccessException | IllegalArgumentException ex) {
                     throw new MongomanException(ex);
                 }
@@ -561,7 +590,7 @@ public abstract class Base {
         if(obj == null)
             return null;
         
-        return options.fullSave ? obj.toDBObject() : obj.getKey().toDBObject();
+        return options.fullSave ? obj.toDBObject() : obj.getKey().data;
     }
 
 }

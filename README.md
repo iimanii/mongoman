@@ -85,14 +85,14 @@ public Class Car extends Base {
 
 When loading and saving the parent object, Mongoman will automatically load / save any nested objects in their respective collections, while only storing "keys" in the original object
 
-If you want the full object to be saved with parent (this might be useful for querying). Set the **fullSave** variable to true when intializating
+If you want the full object to be saved with parent (this might be useful for querying). Set the **fullSave** option to true when intializating
 ``` 
 public Class Car extends Base {
     Door door;
     ....
     
     public Car(...) {
-        super("car", true);
+        super("car", options);
         ....
     }
 }

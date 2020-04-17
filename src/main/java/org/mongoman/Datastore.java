@@ -23,6 +23,7 @@
  */
 package org.mongoman;
 
+import com.mongodb.BasicDBObject;
 import com.mongodb.DB;
 import com.mongodb.DBCollection;
 import com.mongodb.DBCursor;
@@ -49,6 +50,8 @@ public class Datastore {
     
     private final static String UNIQUE_KEY_INDEX_NAME = "_key_";
     
+    private final static DBObject _ID_PROJECTION = new BasicDBObject("_id", 1);
+    
     public Datastore(MongoClient mongoClient, String dbname) {
         this.name = dbname;
         this.mongoClient = mongoClient;
@@ -58,7 +61,14 @@ public class Datastore {
     
     /* get item */
     protected DBObject get(Key key) {
-        return getCollection(key.kind).findOne(key.toDBObject());
+        return getCollection(key.kind).findOne(key.filterData);
+    }
+    
+    protected boolean exists(Key key) {
+        return getCollection(key.kind).find(key.filterData, _ID_PROJECTION)
+                                      .batchSize(1)
+                                      .limit(1)
+                                      .hasNext();
     }
     
     /* save item .. return true if item is new */
@@ -70,7 +80,7 @@ public class Datastore {
     
     /* delete item using its key */
     protected boolean delete(Key key) {
-        WriteResult r = getCollection(key.kind).remove(key.toDBObject());
+        WriteResult r = getCollection(key.kind).remove(key.filterData);
         
         return r.getN() > 0;
     }
@@ -109,13 +119,13 @@ public class Datastore {
         else
             Collection = db.getCollection(name);
         
-        List<DBObject> indexes = Collection.getIndexInfo();
+        List<DBObject> currentIndexes = Collection.getIndexInfo();
         
         DBObject currentKeyIndex = null;
         
-        DBObject keyIndex = Base.getUniqueIndexes(Kind.getClass(name));
+        DBObject keyIndex = Base.getKeyFields(Kind.getClass(name));
         
-        for(DBObject index : indexes) {
+        for(DBObject index : currentIndexes) {
             if(((String)index.get("name")).equals(UNIQUE_KEY_INDEX_NAME)) {
                 currentKeyIndex = index;
                 break;
