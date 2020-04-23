@@ -30,10 +30,9 @@ import com.mongodb.DBCursor;
 import com.mongodb.DBObject;
 import com.mongodb.MongoClient;
 import com.mongodb.WriteResult;
-import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 /**
@@ -49,6 +48,7 @@ public class Datastore {
     private final HashMap<String, DBCollection> Collections;
     
     private final static String UNIQUE_KEY_INDEX_NAME = "_key_";
+    private final static String UNIQUE_INDEX_PREFIX = "__unique_";
     
     private final static DBObject _ID_PROJECTION = new BasicDBObject("_id", 1);
     
@@ -121,10 +121,12 @@ public class Datastore {
         
         List<DBObject> currentIndexes = Collection.getIndexInfo();
         
+        /* setup key index */
         DBObject currentKeyIndex = null;
         
         DBObject keyIndex = Base.getKeyFields(Kind.getClass(name));
         
+        /* match either name or content */
         for(DBObject index : currentIndexes) {
             if(((String)index.get("name")).equals(UNIQUE_KEY_INDEX_NAME)) {
                 currentKeyIndex = index;
@@ -147,7 +149,36 @@ public class Datastore {
 
         if(currentKeyIndex == null) {
             System.out.println("Setting unique index");
-            Collection.createIndex(keyIndex, UNIQUE_KEY_INDEX_NAME, true);
+            if(keyIndex.keySet().size() > 0)
+                Collection.createIndex(keyIndex, UNIQUE_KEY_INDEX_NAME, true);
+        }
+        
+        /* setup unique index */
+        HashSet<String> set = new HashSet<>();
+        
+        for(DBObject index : currentIndexes) {
+            String n = (String) index.get("name");
+            if(n.startsWith(UNIQUE_INDEX_PREFIX))
+                set.add(n);
+        }
+
+        List<String> unique = Base.getUniqueFields(Kind.getClass(name));
+        
+        for(String s : unique) {
+            String n = UNIQUE_INDEX_PREFIX + s;
+            
+            if(!set.contains(n)) {
+                System.out.println("Adding unique index: " + s);
+                DBObject o = new BasicDBObject(s, 1);
+                Collection.createIndex(o, n, true);
+            }
+            
+            set.remove(n);
+        }
+        
+        for(String s : set) {
+            System.out.println("Removing: " + s);
+            Collection.dropIndex(s);
         }
         
         Collections.put(name, Collection);

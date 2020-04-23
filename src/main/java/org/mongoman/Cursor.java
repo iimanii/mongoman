@@ -64,13 +64,13 @@ public class Cursor <T extends Base> {
     /* Non blocking check for tailable cursors to see if another object is available */
     public T tryNext() {
         DBObject next = cursor.tryNext();
-        return createInstance(clazz, next);
+        return next != null ? createInstance(clazz, next) : null;
     }
     
     /* Returns the object the cursor is at and moves the cursor ahead by one */
     public T next​() {        
-        DBObject current = cursor.next();
-        return createInstance(clazz, current);
+        DBObject next = cursor.next();
+        return createInstance(clazz, next);
     }
     
     /* Returns the number of objects through which the cursor has iterated */

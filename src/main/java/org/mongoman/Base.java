@@ -145,6 +145,24 @@ public abstract class Base {
         return data;
     }
     
+    protected static List<String> getUniqueFields(Class<? extends Base> clazz) {
+        List<String> unique = new ArrayList<>();
+        
+        /* Get all public fields of the class */
+        Field[] fields = clazz.getFields();
+        
+        for(Field field : fields) {
+            /* must not be static */
+            if(Modifier.isStatic(field.getModifiers()))
+                continue;
+            
+            if(field.isAnnotationPresent(Unique.class))
+                unique.add(field.getName());
+        }
+        
+        return unique;
+    }
+    
     /* loads data into the object */
     protected void fromDBObject(DBObject data) {
         /* Get all public fields of the class */

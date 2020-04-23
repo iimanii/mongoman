@@ -124,5 +124,18 @@ You can query the database using the **Query** class, all mongodb filters are su
     }
 ```
 
+#### Unique Fields
+You can mark some fields as Unique by adding the @Unique annotation to ensure uniqueness across the DB
+
+``` 
+public Class Car extends Base {
+    Door door;
+
+    @Unique
+    long code;
+    ....
+}
+```
+
 #### Atomicty / Transactions
 Currently not implemented, will be included in future versions

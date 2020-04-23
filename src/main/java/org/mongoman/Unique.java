@@ -23,49 +23,15 @@
  */
 package org.mongoman;
 
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+
 /**
  *
  * @author ahmed
  */
-public class Options {
-    
-    /** 
-     * if true, all fields for nested objects will be included when saving this objects
-     * otherwise only keys for nested objects will be included
-     */
-    public boolean fullSave;
-    
-    /**
-     * does store null fields into database when saving
-     */
-    public boolean ignoreNull;
-    
-    /**
-     * enable this to remove extra/obsolete properties found in database object 
-     *  and are not defined in the class 
-     */
-    public boolean ignoreUnknownProperties;
 
-    public Options() {
-        this.fullSave = false;
-        this.ignoreNull = false;
-        this.ignoreUnknownProperties = false;
-    }
+@Retention(RetentionPolicy.RUNTIME)
+public @interface Unique {
     
-    protected Options(Options copy) {
-        this.fullSave = copy.fullSave;
-        this.ignoreNull = copy.ignoreNull;
-        this.ignoreUnknownProperties = copy.ignoreUnknownProperties;
-    }
-    
-    /* Static stuff */
-    private static Options defaultOptions = new Options();
-    
-    public static synchronized void setDefaultOptions(Options options) {
-        defaultOptions = options;
-    }
-    
-    public static Options getDefaultOptions() {
-        return defaultOptions;
-    }
 }
