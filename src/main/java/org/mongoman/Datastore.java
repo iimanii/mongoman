@@ -23,6 +23,7 @@
  */
 package org.mongoman;
 
+import com.mongodb.BasicDBList;
 import com.mongodb.BasicDBObject;
 import com.mongodb.DB;
 import com.mongodb.DBCollection;
@@ -34,6 +35,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import org.bson.types.ObjectId;
 
 /**
  *
@@ -80,7 +82,19 @@ public class Datastore {
     
     /* delete item using its key */
     protected boolean delete(Key key) {
+        if(key.isEmpty())
+           throw new MongomanException("Trying to delete item using empty key");
+        
         WriteResult r = getCollection(key.kind).remove(key.filterData);
+        
+        return r.getN() > 0;
+    }
+    
+    /* delete item using its objectid */
+    protected boolean delete(String kind, ObjectId id) {
+        DBObject obj = new BasicDBObject("_id", id);
+        
+        WriteResult r = getCollection(kind).remove(obj);
         
         return r.getN() > 0;
     }
@@ -148,9 +162,10 @@ public class Datastore {
         }
 
         if(currentKeyIndex == null) {
-            System.out.println("Setting unique index");
-            if(keyIndex.keySet().size() > 0)
+            if(keyIndex.keySet().size() > 0) {
+                System.out.println("Setting unique index");
                 Collection.createIndex(keyIndex, UNIQUE_KEY_INDEX_NAME, true);
+            }
         }
         
         /* setup unique index */

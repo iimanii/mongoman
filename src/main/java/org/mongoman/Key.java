@@ -154,4 +154,7 @@ public class Key {
         return data.equals(key.data);
     }
 
+    boolean isEmpty() {
+        return filterData.isEmpty();
+    }
 }

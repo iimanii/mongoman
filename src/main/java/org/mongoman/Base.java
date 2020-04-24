@@ -367,6 +367,9 @@ public abstract class Base {
     
     /* deletes entity from datastore and memcache */
     public boolean delete(Datastore store) {
+        if(_id != null)
+            return store.delete(kind, _id);
+        
         return store.delete(getKey());
     }
     
