@@ -49,7 +49,7 @@ public class Query <T extends Base> {
             this.value = value;
             
             if(value instanceof Base)
-               this.value = ((Base)value).toDBObject();
+               this.value = ((Base)value).getKey().filterData;
         }
         
         public Filter(FilterOperator op, Filter... filters) {

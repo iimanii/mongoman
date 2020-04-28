@@ -23,7 +23,6 @@
  */
 package org.mongoman;
 
-import com.mongodb.BasicDBList;
 import com.mongodb.BasicDBObject;
 import com.mongodb.DB;
 import com.mongodb.DBCollection;
@@ -43,9 +42,9 @@ import org.bson.types.ObjectId;
  */
 public class Datastore {
     
+    private final DB db;
     public final String name;
     private final MongoClient mongoClient;
-    private final DB db;
     
     private final HashMap<String, DBCollection> Collections;
     
@@ -119,8 +118,7 @@ public class Datastore {
     }
     
     /** TODO: 
-     * Make sure indexes are set properly
-     * - remove unwanted indexes
+     * Remove debugging prints
      */
     private synchronized void initCollection(String name) {
         if(Collections.containsKey(name))
@@ -212,6 +210,6 @@ public class Datastore {
     }
     
     public void dropCollection(String name) {
-        getCollection(name).drop();
+        db.getCollection(name).drop();
     }
 }

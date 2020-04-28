@@ -286,15 +286,27 @@ public abstract class Base {
         /* Get all public fields of the class */
         Field[] fields = this.getClass().getFields();
         for(Field field : fields) {
-            if(Base.class.isAssignableFrom(field.getType())) {
-                try {
-                    Base base = (Base) field.get(this);
-                    
-                    if(base != null)
-                        result &= base.load();
-                } catch (IllegalAccessException | IllegalArgumentException ex) {
-                    throw new MongomanException(ex);
+            try {
+                Object value = field.get(this);
+                
+                if(value == null)
+                    continue;
+            
+                if(value instanceof Base) {
+                    result &= ((Base) value).load();
+                } else if (value instanceof Base[]) {
+                    for(Base b : (Base[]) value)
+                        result &= b.load();
+                } else if (value instanceof Collection) {
+                    Collection l = (Collection) value;
+
+                    if (l.size() > 0 && Base.class.isAssignableFrom(l.iterator().next().getClass())) {
+                        for(Base b : (Collection<Base>) l)
+                            result &= b.load();
+                    }
                 }
+            } catch (IllegalAccessException | IllegalArgumentException ex) {
+                throw new MongomanException(ex);
             }
         }
         
@@ -303,7 +315,7 @@ public abstract class Base {
     
     /**
      * saves the entity to default datastore 
-     * @return 
+     * @return true if the item is new 
      */
     public boolean save() {
         return save(Datastore.getDefaultService(), false);
@@ -312,7 +324,7 @@ public abstract class Base {
     /**
      * saves the entity to default datastore 
      * @param saveNested if true all Base fields will also get saved in their collections
-     * @return 
+     * @return true if the item is new
      */
     public boolean save(boolean saveNested) {
         return save(Datastore.getDefaultService(), saveNested);
@@ -321,7 +333,7 @@ public abstract class Base {
     /**
      * saves the entity to default datastore 
      * @param store
-     * @return 
+     * @return true if the item is new
      */
     public boolean save(Datastore store) {
         return save(store, false);
@@ -331,33 +343,43 @@ public abstract class Base {
      * saves the entity to datastore 
      * @param store
      * @param saveNested if true all Base fields will also get saved in their collections
-     * @return 
+     * @return true if the item is new
      */
     public boolean save(Datastore store, boolean saveNested) {
         DBObject e = toDBObject();
-        return store.put(kind, e) & (saveNested ? saveNested(store) : true);
-    }
-    
-
-    protected boolean saveNested(Datastore store) {
-        boolean result = true;
+        if(saveNested)
+            saveNested(store);
         
+        return store.put(kind, e);
+    }
+
+    protected void saveNested(Datastore store) {        
         /* Get all public fields of the class */
         Field[] fields = this.getClass().getFields();
         for(Field field : fields) {
-            if(Base.class.isAssignableFrom(field.getType())) {
-                try {                    
-                    Base base = (Base) field.get(this);
-    
-                    if(base != null)
-                        result &= base.save(true);
-                } catch (IllegalAccessException | IllegalArgumentException ex) {
-                    throw new MongomanException(ex);
+            try {
+                Object value = field.get(this);
+                
+                if(value == null)
+                    continue;
+            
+                if(value instanceof Base) {
+                    ((Base) value).save(true);
+                } else if (value instanceof Base[]) {
+                    for(Base b : (Base[]) value)
+                        b.save(true);
+                } else if (value instanceof Collection) {
+                    Collection l = (Collection) value;
+
+                    if (l.size() > 0 && Base.class.isAssignableFrom(l.iterator().next().getClass())) {
+                        for(Base b : (Collection<Base>) l)
+                            b.save(true);
+                    }
                 }
+            } catch (IllegalAccessException | IllegalArgumentException ex) {
+                throw new MongomanException(ex);
             }
         }
-        
-        return result;
     }
     
     /* deletes entity from datastore and memcache */

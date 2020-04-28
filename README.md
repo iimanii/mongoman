@@ -124,6 +124,11 @@ You can query the database using the **Query** class, all mongodb filters are su
     }
 ```
 
+One can use Base objects in query, in this case it will be translated into its key
+```
+    Filter _eq = new Filter("door", Query.FilterOperator.EQUALS, door0);
+```
+
 #### Unique Fields
 You can mark some fields as Unique by adding the @Unique annotation to ensure uniqueness across the DB
 
