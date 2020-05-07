@@ -24,15 +24,18 @@
 package org.mongoman;
 
 import com.mongodb.BasicDBObject;
+import com.mongodb.CommandResult;
 import com.mongodb.DB;
 import com.mongodb.DBCollection;
 import com.mongodb.DBCursor;
 import com.mongodb.DBObject;
 import com.mongodb.MongoClient;
+import com.mongodb.WriteConcern;
 import com.mongodb.WriteResult;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import org.bson.types.ObjectId;
 
@@ -48,8 +51,9 @@ public class Datastore {
     
     private final HashMap<String, DBCollection> Collections;
     
-    private final static String UNIQUE_KEY_INDEX_NAME = "_key_";
-    private final static String UNIQUE_INDEX_PREFIX = "__unique_";
+    private final static String KEY_INDEX_NAME = "__key_";
+    private final static String UNIQUE_INDEX_PREFIX   = "__unique_";
+    private final static String REGULAR_INDEX_PREFIX  = "__regular_";
     
     private final static DBObject _ID_PROJECTION = new BasicDBObject("_id", 1);
     
@@ -71,10 +75,14 @@ public class Datastore {
                                       .limit(1)
                                       .hasNext();
     }
-    
-    /* save item .. return true if item is new */
-    protected boolean put(String kind, DBObject data) {
-        WriteResult r = getCollection(kind).save(data);
+        
+    protected boolean put(String kind, DBObject data, WriteConcern concern) {
+        WriteResult r;
+
+        if(concern == null)
+            r = getCollection(kind).save(data);
+        else
+            r = getCollection(kind).save(data, concern);
         
         return !r.isUpdateOfExisting();
     }
@@ -140,7 +148,7 @@ public class Datastore {
         
         /* match either name or content */
         for(DBObject index : currentIndexes) {
-            if(((String)index.get("name")).equals(UNIQUE_KEY_INDEX_NAME)) {
+            if(((String)index.get("name")).equals(KEY_INDEX_NAME)) {
                 currentKeyIndex = index;
                 break;
             }
@@ -152,8 +160,8 @@ public class Datastore {
         }
         
         if(currentKeyIndex != null) {
-            if((!keyIndex.equals(currentKeyIndex.get("key")) || !((String)currentKeyIndex.get("name")).equals(UNIQUE_KEY_INDEX_NAME))) {
-                System.out.println("Dropping unique index");
+            if((!keyIndex.equals(currentKeyIndex.get("key")) || !((String)currentKeyIndex.get("name")).equals(KEY_INDEX_NAME))) {
+                System.out.println("Dropping key index");
                 Collection.dropIndex((String)currentKeyIndex.get("name"));
                 currentKeyIndex = null;
             }
@@ -161,8 +169,8 @@ public class Datastore {
 
         if(currentKeyIndex == null) {
             if(keyIndex.keySet().size() > 0) {
-                System.out.println("Setting unique index");
-                Collection.createIndex(keyIndex, UNIQUE_KEY_INDEX_NAME, true);
+                System.out.println("Setting key index");
+                Collection.createIndex(keyIndex, KEY_INDEX_NAME, true);
             }
         }
         
@@ -171,22 +179,25 @@ public class Datastore {
         
         for(DBObject index : currentIndexes) {
             String n = (String) index.get("name");
-            if(n.startsWith(UNIQUE_INDEX_PREFIX))
+            if(n.startsWith(UNIQUE_INDEX_PREFIX) || n.startsWith(REGULAR_INDEX_PREFIX))
                 set.add(n);
         }
 
-        List<String> unique = Base.getUniqueFields(Kind.getClass(name));
+        Map<String, Boolean> indexFields = Base.getIndexFields(Kind.getClass(name));
         
-        for(String s : unique) {
-            String n = UNIQUE_INDEX_PREFIX + s;
+        for(Map.Entry<String, Boolean> e : indexFields.entrySet()) {
+            String fieldName = e.getKey();
+            boolean isUnique = e.getValue();
+            String indexName = isUnique ? UNIQUE_INDEX_PREFIX : REGULAR_INDEX_PREFIX;
+            indexName += fieldName;
             
-            if(!set.contains(n)) {
-                System.out.println("Adding unique index: " + s);
-                DBObject o = new BasicDBObject(s, 1);
-                Collection.createIndex(o, n, true);
+            if(!set.contains(indexName)) {
+                System.out.println("Adding index: " + indexName);
+                DBObject o = new BasicDBObject(fieldName, 1);
+                Collection.createIndex(o, indexName, isUnique);
             }
             
-            set.remove(n);
+            set.remove(indexName);
         }
         
         for(String s : set) {
@@ -211,5 +222,10 @@ public class Datastore {
     
     public void dropCollection(String name) {
         db.getCollection(name).drop();
+    }
+    
+    public void fsync(boolean async) {
+        CommandResult result = mongoClient.fsync(async);
+        System.out.println(result.toJson());
     }
 }

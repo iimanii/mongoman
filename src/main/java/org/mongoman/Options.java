@@ -65,7 +65,8 @@ public class Options {
         defaultOptions = options;
     }
     
+    /* always return a copy */
     public static Options getDefaultOptions() {
-        return defaultOptions;
+        return new Options(defaultOptions);
     }
 }

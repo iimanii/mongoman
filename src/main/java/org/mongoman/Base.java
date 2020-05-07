@@ -26,6 +26,7 @@ package org.mongoman;
 import com.mongodb.BasicDBList;
 import com.mongodb.BasicDBObject;
 import com.mongodb.DBObject;
+import com.mongodb.WriteConcern;
 import java.lang.reflect.Array;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
@@ -35,8 +36,10 @@ import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import org.bson.types.ObjectId;
 
@@ -57,7 +60,7 @@ public abstract class Base {
     /* Key */
     private Key key;
     
-    /* whether or not data was loaded from db */
+    /* mongo ObjectId */
     private ObjectId _id;
 
     /* underlying db entity */
@@ -145,8 +148,11 @@ public abstract class Base {
         return data;
     }
     
-    protected static List<String> getUniqueFields(Class<? extends Base> clazz) {
-        List<String> unique = new ArrayList<>();
+    /* 
+     * returns Map<FieldName, isUniqueIndex>
+     */
+    protected static Map<String, Boolean> getIndexFields(Class<? extends Base> clazz) {
+        Map<String, Boolean> index = new HashMap<>();
         
         /* Get all public fields of the class */
         Field[] fields = clazz.getFields();
@@ -157,10 +163,12 @@ public abstract class Base {
                 continue;
             
             if(field.isAnnotationPresent(Unique.class))
-                unique.add(field.getName());
+                index.put(field.getName(), true);
+            else if(field.isAnnotationPresent(Index.class))
+                index.put(field.getName(), false);
         }
         
-        return unique;
+        return index;
     }
     
     /* loads data into the object */
@@ -320,7 +328,7 @@ public abstract class Base {
     public boolean save() {
         return save(Datastore.getDefaultService(), false);
     }
-    
+
     /**
      * saves the entity to default datastore 
      * @param saveNested if true all Base fields will also get saved in their collections
@@ -346,13 +354,37 @@ public abstract class Base {
      * @return true if the item is new
      */
     public boolean save(Datastore store, boolean saveNested) {
+        return save(store, saveNested, null);
+    }
+
+        
+    /**
+     * saves the entity to default datastore using specified write concern
+     * @param concern
+     * @return true if the item is new 
+     */
+    public boolean save(WriteConcern concern) {
+        return save(Datastore.getDefaultService(), false, concern);
+    }
+    
+    /**
+     * saves the entity to specified datastore using specified write concern
+     * @param store
+     * @param concern
+     * @return true if the item is new 
+     */
+    public boolean save(Datastore store, WriteConcern concern) {
+        return save(store, false, concern);
+    }
+    
+    protected boolean save(Datastore store, boolean saveNested, WriteConcern concern) {
         DBObject e = toDBObject();
         if(saveNested)
             saveNested(store);
         
-        return store.put(kind, e);
+        return store.put(kind, e, concern);
     }
-
+    
     protected void saveNested(Datastore store) {        
         /* Get all public fields of the class */
         Field[] fields = this.getClass().getFields();

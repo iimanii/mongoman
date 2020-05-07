@@ -241,7 +241,7 @@ public class Query <T extends Base> {
 
         for(Map.Entry<String, SortDirection> e : sort.entrySet()) {
             computedSort.put(e.getKey(), e.getValue().dir);
-    }
+        }
         
         return computedSort;
     }
