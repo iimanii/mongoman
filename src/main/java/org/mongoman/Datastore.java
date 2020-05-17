@@ -144,7 +144,7 @@ public class Datastore {
         /* setup key index */
         DBObject currentKeyIndex = null;
         
-        DBObject keyIndex = Base.getKeyFields(Kind.getClass(name));
+        DBObject keyIndex = Base.getKeyFields(ClassMap.getClass(name));
         
         /* match either name or content */
         for(DBObject index : currentIndexes) {
@@ -183,7 +183,7 @@ public class Datastore {
                 set.add(n);
         }
 
-        Map<String, Boolean> indexFields = Base.getIndexFields(Kind.getClass(name));
+        Map<String, Boolean> indexFields = Base.getIndexFields(ClassMap.getClass(name));
         
         for(Map.Entry<String, Boolean> e : indexFields.entrySet()) {
             String fieldName = e.getKey();

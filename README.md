@@ -14,6 +14,7 @@ Must also include mongo-java-driver in your project
 #### Loading and storing objects into mongodb
 - Implement a class that **extends** mongoman.Base
 - Your class will represent one unique collection in the database
+- Collection name must be passed via @Kind annotation with the class
 - Only **non-static public** fields get stored
 - **non-static final public** fields are used as keys to load and store the objects and marked as unique index (they cannot repeat)
 - Use load() and store() to load and save the object
@@ -22,6 +23,7 @@ Must also include mongo-java-driver in your project
 ##### Example
 
 ```
+@Kind("car")
 class Car extends Base {
     public int myInteger;               // stored in db
     public double[] myDoubleArray;      // stored in db
@@ -29,17 +31,13 @@ class Car extends Base {
     public final String myId;   // saved in db, also unique across collection
     private double priv;        // this will not get stored in db
 
-    public static String collectionName = "car"
-
     public Car(...) {
-        super(collectionName);
         myId = ....
         .....
     }
     
     // must implement a 0-argument constructor
     public Car() {
-        super(collectionName);
         ....
     }
         
@@ -87,12 +85,13 @@ When loading and saving the parent object, Mongoman will automatically load / sa
 
 If you want the full object to be saved with parent (this might be useful for querying). Set the **fullSave** option to true when intializating
 ``` 
+@Kind("car")
 public Class Car extends Base {
     Door door;
     ....
     
     public Car(...) {
-        super("car", options);
+        super(options);
         ....
     }
 }
@@ -133,6 +132,7 @@ One can use Base objects in query, in this case it will be translated into its k
 You can mark some fields as Unique by adding the @Unique annotation to ensure uniqueness across the DB
 
 ``` 
+@Kind("car")
 public Class Car extends Base {
     Door door;
 

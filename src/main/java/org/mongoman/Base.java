@@ -51,7 +51,7 @@ import org.bson.types.ObjectId;
  */
 
 public abstract class Base {
-    /* kind */
+    /* collection name */
     private final String kind;
     
     /* Options */
@@ -66,13 +66,12 @@ public abstract class Base {
     /* underlying db entity */
     private DBObject loaded;
     
-    public Base(String collectionName) {
-        this(collectionName, Options.getDefaultOptions());
+    public Base() {
+        this(Options.getDefaultOptions());
     }
 
-    public Base(String collectionName, Options options) {
-        Kind.register(collectionName, this.getClass());
-        this.kind = collectionName;
+    public Base(Options options) {
+        this.kind = ClassMap.getKind(this.getClass());
         this.options = new Options(options);
     }
     

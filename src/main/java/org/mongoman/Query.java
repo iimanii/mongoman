@@ -129,7 +129,7 @@ public class Query <T extends Base> {
     
     public Query(Class<? extends Base> clazz) {
         this.clazz = clazz;
-        this.kind = Kind.getKind(clazz);
+        this.kind = ClassMap.getKind(clazz);
         this.keysOnly = false;
         this.loadNested = false;
         this.sort = new LinkedHashMap<>();
