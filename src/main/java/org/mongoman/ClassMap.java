@@ -37,14 +37,14 @@ public class ClassMap {
         Kind kind = clazz.getAnnotation(Kind.class);
         
         if(kind == null)
-            throw new MongomanException("Class " + clazz + " does not have mongoman.Kind annotation");
+            throw new MongomanException(clazz + " does not have @Kind annotation");
         
         return kind.value();
     }
     
     private static synchronized void register(String name, Class<? extends Base> clazz) {
         if(name == null || name.length() == 0)
-            throw new MongomanException("Collection name cannot be null or empty");
+            throw new MongomanException("Collection name cannot be null or empty for " + clazz);
         
         Class<? extends Base> clazz0 = KIND_MAP.get(name);
 
@@ -52,8 +52,8 @@ public class ClassMap {
             KIND_MAP.put(name, clazz);
             CLASS_MAP.put(clazz, name);
         } else if (clazz0 != clazz)
-            throw new MongomanException("Trying to register " + name + " to class " + clazz + 
-                                        ". Collection already associated with class " + clazz0);
+            throw new MongomanException("Trying to register " + name + " to " + clazz + 
+                                        ". Collection already associated with " + clazz0);
     }
     
     protected static final Class<? extends Base> getClass(String kind) {

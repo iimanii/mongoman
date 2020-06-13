@@ -381,7 +381,12 @@ public abstract class Base {
         if(saveNested)
             saveNested(store);
         
-        return store.put(kind, e, concern);
+        boolean isNew = store.put(kind, e, concern);
+        
+        if(isNew)
+           _id = store.getObjectId(getKey());
+        
+        return isNew;
     }
     
     protected void saveNested(Datastore store) {        
@@ -418,12 +423,54 @@ public abstract class Base {
         return delete(Datastore.getDefaultService());
     }
     
-    /* deletes entity from datastore and memcache */
+    public boolean delete(boolean nested) {
+        return delete(Datastore.getDefaultService(), nested);
+        
+    }
+    
+    /* deletes entity from datastore */
     public boolean delete(Datastore store) {
+        return delete(store, false);
+    }
+
+    /* deletes entity from datastore and memcache */
+    public boolean delete(Datastore store, boolean nested) {
+        if(nested)
+            deleteNested(store);
+        
         if(_id != null)
             return store.delete(kind, _id);
         
         return store.delete(getKey());
+    }
+    
+    protected void deleteNested(Datastore store) {        
+        /* Get all public fields of the class */
+        Field[] fields = this.getClass().getFields();
+        for(Field field : fields) {
+            try {
+                Object value = field.get(this);
+                
+                if(value == null)
+                    continue;
+            
+                if(value instanceof Base) {
+                    ((Base) value).delete(true);
+                } else if (value instanceof Base[]) {
+                    for(Base b : (Base[]) value)
+                        b.delete(true);
+                } else if (value instanceof Collection) {
+                    Collection l = (Collection) value;
+
+                    if (l.size() > 0 && Base.class.isAssignableFrom(l.iterator().next().getClass())) {
+                        for(Base b : (Collection<Base>) l)
+                            b.delete(true);
+                    }
+                }
+            } catch (IllegalAccessException | IllegalArgumentException ex) {
+                throw new MongomanException(ex);
+            }
+        }
     }
     
     /**

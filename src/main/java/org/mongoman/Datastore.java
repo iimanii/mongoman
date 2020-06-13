@@ -75,7 +75,20 @@ public class Datastore {
                                       .limit(1)
                                       .hasNext();
     }
+     
+    
+    protected ObjectId getObjectId(Key key) {
+        DBObject obj = getCollection(key.kind).find(key.filterData, _ID_PROJECTION)
+                                      .batchSize(1)
+                                      .limit(1)
+                                      .next();
         
+        if(obj != null)
+            return (ObjectId) obj.get("_id");
+        
+        return null;
+    }
+    
     protected boolean put(String kind, DBObject data, WriteConcern concern) {
         WriteResult r;
 
@@ -222,6 +235,10 @@ public class Datastore {
     
     public void dropCollection(String name) {
         db.getCollection(name).drop();
+    }
+    
+    public void dropCollection(Class<? extends Base> clazz) {
+        dropCollection(ClassMap.getKind(clazz));
     }
     
     public void fsync(boolean async) {
