@@ -25,6 +25,7 @@ package org.mongoman;
 
 import com.mongodb.DBCursor;
 import com.mongodb.DBObject;
+import java.util.HashMap;
 
 /**
  *
@@ -103,7 +104,7 @@ public class Cursor <T extends Base> {
         
         T instance = T.createInstance(clazz, data);
         if(loadNested)
-            instance.loadNested(datastore);
+            instance.loadNested(datastore, new HashMap<>());
         
         return instance;
     }

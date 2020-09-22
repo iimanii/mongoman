@@ -90,6 +90,10 @@ public abstract class Base {
         return kind;
     }
     
+    public static String getKind(Class<? extends Base> clazz) {
+        return ClassMap.getKind(clazz);
+    }
+    
     /* creates an instance given a subclass and its data */
     protected static <T extends Base> T createInstance(Class<? extends Base> clazz, DBObject data) {
         try {
@@ -232,7 +236,7 @@ public abstract class Base {
      * @return true if item is stored in db
      */
     public boolean exists() {
-        return exists(Datastore.getDefaultService());
+        return exists(Datastore.fetchDefaultService());
     }
         
     /**
@@ -249,7 +253,7 @@ public abstract class Base {
      * @return true on success
      */
     public boolean load() {
-        return load(Datastore.getDefaultService());
+        return load(Datastore.fetchDefaultService());
     }
     
     /**
@@ -258,7 +262,7 @@ public abstract class Base {
      * @return true on success
      */
     public boolean load(boolean loadNested) {
-        return load(Datastore.getDefaultService(), loadNested);
+        return load(Datastore.fetchDefaultService(), loadNested);
     }
     
     /**
@@ -277,17 +281,26 @@ public abstract class Base {
      * @return true on success
      */
     public boolean load(Datastore store, boolean loadNested) {
-        DBObject data = store.get(getKey());
+        return load(store, loadNested, new HashMap<>());
+    }
+    
+    private boolean load(Datastore store, boolean loadNested, Map<Key, DBObject> loaded) {
+        Key k = getKey();
+        
+        if(!loaded.containsKey(k))
+            loaded.put(getKey(), store.get(k));
+
+        DBObject data = loaded.get(k);
         
         if(data == null)
             return false;
         
         fromDBObject(data);
         
-        return loadNested ? loadNested(store) : true;
+        return loadNested ? loadNested(store, loaded) : true;
     }
     
-    protected boolean loadNested(Datastore store) {
+    protected boolean loadNested(Datastore store, Map<Key, DBObject> loaded) {
         boolean result = true;
         
         /* Get all public fields of the class */
@@ -298,18 +311,22 @@ public abstract class Base {
                 
                 if(value == null)
                     continue;
+                
+                /* dont load by reference object */
+                if(field.isAnnotationPresent(Reference.class))
+                    continue;
             
                 if(value instanceof Base) {
-                    result &= ((Base) value).load();
+                    result &= ((Base) value).load(store, true, loaded);
                 } else if (value instanceof Base[]) {
                     for(Base b : (Base[]) value)
-                        result &= b.load();
+                        result &= b.load(store, true, loaded);
                 } else if (value instanceof Collection) {
                     Collection l = (Collection) value;
 
                     if (l.size() > 0 && Base.class.isAssignableFrom(l.iterator().next().getClass())) {
                         for(Base b : (Collection<Base>) l)
-                            result &= b.load();
+                            result &= b.load(store, true, loaded);
                     }
                 }
             } catch (IllegalAccessException | IllegalArgumentException ex) {
@@ -325,7 +342,7 @@ public abstract class Base {
      * @return true if the item is new 
      */
     public boolean save() {
-        return save(Datastore.getDefaultService(), false);
+        return save(Datastore.fetchDefaultService(), false);
     }
 
     /**
@@ -334,7 +351,7 @@ public abstract class Base {
      * @return true if the item is new
      */
     public boolean save(boolean saveNested) {
-        return save(Datastore.getDefaultService(), saveNested);
+        return save(Datastore.fetchDefaultService(), saveNested);
     }
     
     /**
@@ -363,7 +380,7 @@ public abstract class Base {
      * @return true if the item is new 
      */
     public boolean save(WriteConcern concern) {
-        return save(Datastore.getDefaultService(), false, concern);
+        return save(Datastore.fetchDefaultService(), false, concern);
     }
     
     /**
@@ -400,16 +417,16 @@ public abstract class Base {
                     continue;
             
                 if(value instanceof Base) {
-                    ((Base) value).save(true);
+                    ((Base) value).save(store, true);
                 } else if (value instanceof Base[]) {
                     for(Base b : (Base[]) value)
-                        b.save(true);
+                        b.save(store, true);
                 } else if (value instanceof Collection) {
                     Collection l = (Collection) value;
 
                     if (l.size() > 0 && Base.class.isAssignableFrom(l.iterator().next().getClass())) {
                         for(Base b : (Collection<Base>) l)
-                            b.save(true);
+                            b.save(store, true);
                     }
                 }
             } catch (IllegalAccessException | IllegalArgumentException ex) {
@@ -420,11 +437,11 @@ public abstract class Base {
     
     /* deletes entity from datastore and memcache */
     public boolean delete() {
-        return delete(Datastore.getDefaultService());
+        return delete(Datastore.fetchDefaultService());
     }
     
     public boolean delete(boolean nested) {
-        return delete(Datastore.getDefaultService(), nested);
+        return delete(Datastore.fetchDefaultService(), nested);
         
     }
     
@@ -455,16 +472,16 @@ public abstract class Base {
                     continue;
             
                 if(value instanceof Base) {
-                    ((Base) value).delete(true);
+                    ((Base) value).delete(store, true);
                 } else if (value instanceof Base[]) {
                     for(Base b : (Base[]) value)
-                        b.delete(true);
+                        b.delete(store, true);
                 } else if (value instanceof Collection) {
                     Collection l = (Collection) value;
 
                     if (l.size() > 0 && Base.class.isAssignableFrom(l.iterator().next().getClass())) {
                         for(Base b : (Collection<Base>) l)
-                            b.delete(true);
+                            b.delete(store, true);
                     }
                 }
             } catch (IllegalAccessException | IllegalArgumentException ex) {
@@ -488,8 +505,6 @@ public abstract class Base {
         
         if (object == null)
             return false;
-
-        System.out.println("equals: " + object.getClass());
 
         if(!(object instanceof Base))
             return false;
@@ -713,5 +728,4 @@ public abstract class Base {
         
         return options.fullSave ? obj.toDBObject() : obj.getKey().data;
     }
-
 }

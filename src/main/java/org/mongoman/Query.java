@@ -197,7 +197,7 @@ public class Query <T extends Base> {
     }
     
     public Cursor<T> execute() {
-        return execute(Datastore.getDefaultService());
+        return execute(Datastore.fetchDefaultService());
     }
 
     public Cursor<T> execute(Datastore datastore) {

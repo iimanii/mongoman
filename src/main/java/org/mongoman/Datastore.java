@@ -126,6 +126,13 @@ public class Datastore {
         return DEFAULT_SERVICE;
     }
     
+    protected static Datastore fetchDefaultService() {
+        if(DEFAULT_SERVICE == null)
+            throw new MongomanException("Default Service not initialized");
+        
+        return DEFAULT_SERVICE;
+    }
+    
     public static synchronized void setDefaultService(Datastore store) {
         DEFAULT_SERVICE = store;
     }
@@ -241,8 +248,7 @@ public class Datastore {
         dropCollection(ClassMap.getKind(clazz));
     }
     
-    public void fsync(boolean async) {
-        CommandResult result = mongoClient.fsync(async);
-        System.out.println(result.toJson());
+    public MongoClient getMongoClient() {
+        return mongoClient;
     }
 }

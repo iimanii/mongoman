@@ -97,6 +97,32 @@ public Class Car extends Base {
 }
 ```
 
+#### Using references
+It is possible have 2 classes referencing each other, just make sure to set the @Reference annotation on one of them to avoid cycles while loading.
+@Reference objects will not get loaded when fully loading an object with **.load(true)**
+
+``` 
+@Kind("car")
+public Class Car extends Base {
+    Door door;
+    ....
+    
+    public Car(...) {
+        ....
+    }
+}
+
+@Kind("door")
+public Class Door extends Base {
+    @Reference
+    Car car;
+    ....
+    
+    public Door(...) {
+        ....
+    }
+}
+```
 
 #### Query
 You can query the database using the **Query** class, all mongodb filters are supported
