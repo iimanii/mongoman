@@ -1,6 +1,6 @@
 # Minimalistic mongodb framework
 
-Mongoman is an easy to use framework that helps with mapping your java classes to mongodb objects
+Mongoman is an easy to use framework that maps your java classes to mongodb objects
 
 
 # Installation

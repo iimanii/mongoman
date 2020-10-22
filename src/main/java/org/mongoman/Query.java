@@ -42,6 +42,7 @@ public class Query <T extends Base> {
         private Object value;
         private Filter[] filters;
         private BasicDBObject cached;
+        private String options;
         
         public Filter(String property, FilterOperator op, Object value) {
             this.op = op;
@@ -67,6 +68,9 @@ public class Query <T extends Base> {
                 BasicDBObject comp = new BasicDBObject();
                 comp.put(op.code, value);
                 
+                if(options != null)
+                    comp.put("$options", options);
+                
                 cached.put(property, comp);
             } else {
                 BasicDBList arr = new BasicDBList();
@@ -77,7 +81,13 @@ public class Query <T extends Base> {
                 cached.put(op.code, arr);
             }
             
+            
             return cached;
+        }
+        
+        public void options(String value) {
+            this.options = value;
+            cached = null;
         }
         
         @Override
@@ -101,7 +111,8 @@ public class Query <T extends Base> {
         GREATER_THAN("$gt"), GREATER_THAN_OR_EQUAL("$gte"),
         LESS_THAN("$lt"), LESS_THAN_OR_EQUAL("$lte"),
         IN("$in"), NOT_IN("$nin"),
-        AND("$and"), OR("$or"), NOT("$not"), NOR("$nor");
+        AND("$and"), OR("$or"), NOT("$not"), NOR("$nor"),
+        REGEX("$regex");
         
         final String code;
 
