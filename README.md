@@ -70,7 +70,13 @@ Not all fields can be serialized into mongodb, the following are the ones guaran
 Note that using when using java.util.Set, 2 Base objects are considered equal if their keys are equal (final fields)
 if you wish to change this behavior you must implement "equals" and "hashCode" for your class
 
-#### Using nested objects
+#### Keys
+Mongoman uses keys to load and save objects, keys are composed of the mongo _id field plus any **final** field defined in the object
+
+Usage of keys is implicit within mongoman framework and is just mentioned here for clarity
+
+
+#### Working with nested objects
 Mongoman allows the usage of nested Base classes
 
 ``` public Class Door extends Base {...}```
@@ -81,21 +87,26 @@ public Class Car extends Base {
 }
 ```
 
-When loading and saving the parent object, Mongoman will automatically load / save any nested objects in their respective collections, while only storing "keys" in the original object
 
-If you want the full object to be saved with parent (this might be useful for querying). Set the **fullSave** option to true when intializating
+Nested objects will be stored as "keys" in the parent object, if you want the full object to be saved with parent (this might be useful for querying) add **FullSave** annotation to the field
+
 ``` 
 @Kind("car")
 public Class Car extends Base {
+    @FullSave()
     Door door;
     ....
     
     public Car(...) {
-        super(options);
+        super();
         ....
     }
 }
 ```
+
+When loading and saving the parent object, Mongoman can automatically load / save any nested objects in their respective collections, while only storing "keys" in the original object
+
+To do so use **.load(true)** and **.save(true)**
 
 #### Using references
 It is possible have 2 classes referencing each other, just make sure to set the @Reference annotation on one of them to avoid cycles while loading.
@@ -135,8 +146,9 @@ You can query the database using the **Query** class, all mongodb filters are su
     Filter _gt = new Filter("name", Query.FilterOperator.EQUALS, "....");
     Filter _ni = new Filter("type", Query.FilterOperator.NOT_IN, new int[]{1, 3});
     Filter _eq = new Filter("door.type", Query.FilterOperator.EQUALS, 2);
+    Filter _rx = new Filter("door.tag, Query.FilterOperator.REGEX, "*alloy");
 
-    Filter _and = new Filter(Query.FilterOperator.AND, _gt, _ni, _eq);
+    Filter _and = new Filter(Query.FilterOperator.AND, _gt, _ni, _eq, _rx);
 
     Query<Car> query = new Query<>(Car.class);
     query.setFilter(f);

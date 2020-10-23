@@ -222,7 +222,7 @@ public abstract class Base {
                 if(options.ignoreNull && value == null)
                     continue;
                 
-                data.append(name, convertFieldToDB(value));
+                data.append(name, convertFieldToDB(value, field.isAnnotationPresent(FullSave.class)));
             } catch (IllegalAccessException | IllegalArgumentException ex) {
                 throw new MongomanException(ex);
             }
@@ -692,17 +692,17 @@ public abstract class Base {
     }
     
     /* Helper functions for saving */
-    private Object convertFieldToDB(Object value) {
+    private Object convertFieldToDB(Object value, boolean fullsave) {
         if(value == null)
             return null;
         
         if(value instanceof Base)
-            return convertBaseToDB((Base) value);
+            return convertBaseToDB((Base) value, fullsave);
         
         if (value instanceof Base[]) {
             BasicDBList list = new BasicDBList();
             for(Base b : (Base[])value)
-                list.add(convertBaseToDB((Base) b));
+                list.add(convertBaseToDB((Base) b, fullsave));
             
             return list;
         }
@@ -713,7 +713,7 @@ public abstract class Base {
             if(l.size() > 0 && Base.class.isAssignableFrom(l.iterator().next().getClass())) {
                 BasicDBList list = new BasicDBList();
                 for(Base b : (Collection<Base>)l)
-                    list.add(convertBaseToDB(b));
+                    list.add(convertBaseToDB(b, fullsave));
                 
                 return list;
             }
@@ -722,10 +722,10 @@ public abstract class Base {
         return value;
     }
     
-    private DBObject convertBaseToDB(Base obj) {
+    private DBObject convertBaseToDB(Base obj, boolean fullsave) {
         if(obj == null)
             return null;
         
-        return options.fullSave ? obj.toDBObject() : obj.getKey().data;
+        return fullsave ? obj.toDBObject() : obj.getKey().data;
     }
 }
