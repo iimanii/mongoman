@@ -23,41 +23,15 @@
  */
 package org.mongoman;
 
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+
 /**
  *
  * @author ahmed
  */
-public class Options {
-    /**
-     * does store null fields into database when saving
-     */
-    public boolean ignoreNull;
-    
-    /**
-     * enable this to remove extra/obsolete properties found in database object 
-     *  and are not defined in the class 
-     */
-    public boolean ignoreUnknownProperties;
 
-    public Options() {
-        this.ignoreNull = false;
-        this.ignoreUnknownProperties = false;
-    }
+@Retention(RetentionPolicy.RUNTIME)
+public @interface FullSave {
     
-    protected Options(Options copy) {
-        this.ignoreNull = copy.ignoreNull;
-        this.ignoreUnknownProperties = copy.ignoreUnknownProperties;
-    }
-    
-    /* Static stuff */
-    private static Options defaultOptions = new Options();
-    
-    public static synchronized void setDefaultOptions(Options options) {
-        defaultOptions = options;
-    }
-    
-    /* always return a copy */
-    public static Options getDefaultOptions() {
-        return new Options(defaultOptions);
-    }
 }
