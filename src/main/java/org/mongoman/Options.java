@@ -23,10 +23,14 @@
  */
 package org.mongoman;
 
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+
 /**
  *
  * @author ahmed
  */
+@Retention(RetentionPolicy.RUNTIME)
 public @interface Options {
     /**
      * does store null fields into database when saving
