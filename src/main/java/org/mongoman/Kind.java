@@ -33,4 +33,5 @@ import java.lang.annotation.RetentionPolicy;
 @Retention(RetentionPolicy.RUNTIME)
 public @interface Kind {
     String value();
+    boolean shallow() default false;
 }

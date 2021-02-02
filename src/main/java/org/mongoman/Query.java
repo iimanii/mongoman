@@ -85,9 +85,10 @@ public class Query <T extends Base> {
             return cached;
         }
         
-        public void options(String value) {
+        public Filter options(String value) {
             this.options = value;
             cached = null;
+            return this;
         }
         
         @Override

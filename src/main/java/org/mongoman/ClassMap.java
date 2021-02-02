@@ -30,19 +30,38 @@ import java.util.HashMap;
  * @author ahmed
  */
 public class ClassMap {
+    protected static class classVariables {
+        String kind;
+        boolean shallow;
+        boolean ignoreNull;
+        boolean ignoreUnknownProperties;
+    }
+    
     private final static HashMap<String, Class<? extends Base>> KIND_MAP  = new HashMap<>();
-    private final static HashMap<Class<? extends Base>, String> CLASS_MAP = new HashMap<>();
+    private final static HashMap<Class<? extends Base>, classVariables> CLASS_MAP = new HashMap<>();
 
-    private static String extract(Class<? extends Base> clazz) {
-        Kind kind = clazz.getAnnotation(Kind.class);
+    private static classVariables extract(Class<? extends Base> clazz) {
+        Kind kind = clazz.getDeclaredAnnotation(Kind.class);
         
         if(kind == null)
             throw new MongomanException(clazz + " does not have @Kind annotation");
         
-        return kind.value();
+        classVariables variables = new classVariables();
+        variables.kind = kind.value();
+        variables.shallow = kind.shallow();
+        
+        Options options = clazz.getDeclaredAnnotation(Options.class);
+        if(options != null) {
+            variables.ignoreNull = options.ignoreNull();
+            variables.ignoreUnknownProperties = options.ignoreUnknownProperties();
+        }
+        
+        return variables;
     }
     
-    private static synchronized void register(String name, Class<? extends Base> clazz) {
+    private static synchronized void register(classVariables variables, Class<? extends Base> clazz) {
+        String name = variables.kind;
+        
         if(name == null || name.length() == 0)
             throw new MongomanException("Collection name cannot be null or empty for " + clazz);
         
@@ -50,7 +69,7 @@ public class ClassMap {
 
         if(clazz0 == null) {
             KIND_MAP.put(name, clazz);
-            CLASS_MAP.put(clazz, name);
+            CLASS_MAP.put(clazz, variables);
         } else if (clazz0 != clazz)
             throw new MongomanException("Trying to register " + name + " to " + clazz + 
                                         ". Collection already associated with " + clazz0);
@@ -61,14 +80,26 @@ public class ClassMap {
     }
     
     protected static final String getKind(Class<? extends Base> clazz) {
-        String kind = CLASS_MAP.get(clazz);
+        classVariables variables = CLASS_MAP.get(clazz);
         
         /* try to instetiate an object to register kind */
-        if(kind == null) {
-           kind = extract(clazz);
-           register(kind, clazz);
+        if(variables == null) {
+           variables = extract(clazz);
+           register(variables, clazz);
         }
         
-        return kind;
+        return variables.kind;
+    }
+    
+    protected static final classVariables getVariables(Class<? extends Base> clazz) {
+        classVariables variables = CLASS_MAP.get(clazz);
+        
+        /* try to instetiate an object to register kind */
+        if(variables == null) {
+           variables = extract(clazz);
+           register(variables, clazz);
+        }
+        
+        return variables;
     }
 }

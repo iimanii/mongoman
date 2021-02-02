@@ -54,9 +54,15 @@ public abstract class Base {
     /* collection name */
     private final String kind;
     
-    /* Options */
-    private Options options;
+    /* shallow objects do not get saved */
+    private final boolean shallow;
+
+    /* does store null fields into database when saving */
+    private final boolean ignoreNull;
     
+    /* enable this to remove extra/obsolete properties found in database object and are not defined in the class */
+    private final boolean ignoreUnknownProperties;
+
     /* Key */
     private Key key;
     
@@ -65,14 +71,13 @@ public abstract class Base {
 
     /* underlying db entity */
     private DBObject loaded;
-    
-    public Base() {
-        this(Options.getDefaultOptions());
-    }
 
-    public Base(Options options) {
-        this.kind = ClassMap.getKind(this.getClass());
-        this.options = new Options(options);
+    public Base() {
+        ClassMap.classVariables v = ClassMap.getVariables(this.getClass());
+        this.kind = v.kind;
+        this.shallow = v.shallow;
+        this.ignoreNull = v.ignoreNull;
+        this.ignoreUnknownProperties = v.ignoreUnknownProperties;
     }
     
     final public Key getKey() {
@@ -219,7 +224,7 @@ public abstract class Base {
             try {
                 Object value = field.get(this);
                 
-                if(options.ignoreNull && value == null)
+                if(ignoreNull && value == null)
                     continue;
                 
                 data.append(name, convertFieldToDB(value, field.isAnnotationPresent(FullSave.class)));
@@ -394,6 +399,9 @@ public abstract class Base {
     }
     
     protected boolean save(Datastore store, boolean saveNested, WriteConcern concern) {
+        if(shallow)
+           throw new MongomanException("Shallow objects cannot be saved: " + this.getClass().getName());
+        
         DBObject e = toDBObject();
         if(saveNested)
             saveNested(store);
@@ -417,16 +425,19 @@ public abstract class Base {
                     continue;
             
                 if(value instanceof Base) {
-                    ((Base) value).save(store, true);
+                    if(!((Base) value).shallow)
+                        ((Base) value).save(store, true);
                 } else if (value instanceof Base[]) {
                     for(Base b : (Base[]) value)
-                        b.save(store, true);
+                        if(!b.shallow)
+                            b.save(store, true);
                 } else if (value instanceof Collection) {
                     Collection l = (Collection) value;
 
                     if (l.size() > 0 && Base.class.isAssignableFrom(l.iterator().next().getClass())) {
                         for(Base b : (Collection<Base>) l)
-                            b.save(store, true);
+                            if(!b.shallow)
+                                b.save(store, true);
                     }
                 }
             } catch (IllegalAccessException | IllegalArgumentException ex) {

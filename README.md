@@ -135,6 +135,45 @@ public Class Door extends Base {
 }
 ```
 
+#### Shallow Objects
+It is possible to enforce that an object will never get saved in its own collection.
+This can be common with nested objects that are fully saved in parent
+
+```
+@Kind(value = "door", shallow = true)
+public Class Door extends Base {
+    ....
+    
+    public Door(...) {
+        ....
+    }
+}
+```
+
+```
+    Door d = new Door(...)
+    ....
+    d.save();           // this will always fail because the object is defined as shallow
+```
+
+### Options
+Use ***@Options*** annotation when defining a class to do further tweeking
+***ignoreNull*** does store null fields into database when saving
+***ignoreUnknownProperties*** remove extra/obsolete properties found in database object and are not defined in the class
+```
+@Kind("door")
+@Options(ignoreNull = true, ignoreUnknownProperties = true)
+public Class Door extends Base {
+    ....
+    
+    public Door(...) {
+        ....
+    }
+}
+```
+
+
+
 #### Query
 You can query the database using the **Query** class, all mongodb filters are supported
 
