@@ -66,6 +66,7 @@ Not all fields can be serialized into mongodb, the following are the ones guaran
 - java.util.Date
 - Any class that extends mongoman.Base
 - An array of any class that extends mongoman.Base
+- java.util.Map<String, ? extends mongoman.Base>
 
 Note that using when using java.util.Set, 2 Base objects are considered equal if their keys are equal (final fields)
 if you wish to change this behavior you must implement "equals" and "hashCode" for your class

@@ -38,6 +38,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -552,7 +553,33 @@ public abstract class Base {
             return value;
         }
         
+        if(value instanceof BasicDBObject) {
+            BasicDBObject map = (BasicDBObject)value;
+
+            if(Map.class.isAssignableFrom(clazz))
+                return convertDBToMapField(map, field);
+            
+            return value;            
+        }
+        
         return clazz.isPrimitive() ? convertPrimitiveType(value, clazz) : value;
+    }
+    
+    private Map convertDBToMapField(BasicDBObject map, Field field) {
+        Class<?> base = getGenericBaseType(field.getGenericType(), 1);
+        
+        if(base == null)
+            return map;
+        
+        Map<String, Base> result = new LinkedHashMap<>();
+        
+        for(Map.Entry<String, Object> e : map.entrySet()) {
+            Object o = e.getValue();
+            if(o != null)
+                result.put(e.getKey(), createInstance((Class<? extends Base>) base, (DBObject) o));
+        }
+
+        return result;
     }
     
     private Collection convertDBToCollectionField(BasicDBList list, Field field) {
@@ -687,15 +714,19 @@ public abstract class Base {
     }
 
     private Class<?> getGenericBaseType(Type genericType) {
+        return getGenericBaseType(genericType, 0);
+    }
+    
+    private Class<?> getGenericBaseType(Type genericType, int index) {
         if (genericType instanceof ParameterizedType) {
             Type[] types = ((ParameterizedType)genericType).getActualTypeArguments();
             
             if(types.length == 0)
                 return null;
             
-            Type type0 = types[0];
+            Type type0 = types[index];
             
-            if(type0 instanceof Class && Base.class.isAssignableFrom((Class<?>)types[0]))
+            if(type0 instanceof Class && Base.class.isAssignableFrom((Class<?>)types[index]))
                 return (Class<?>)type0;
         }
         
@@ -721,12 +752,25 @@ public abstract class Base {
         if (value instanceof Collection) {
             Collection l = (Collection)value; 
 
-            if(l.size() > 0 && Base.class.isAssignableFrom(l.iterator().next().getClass())) {
+            if(l.size() > 0 && Base.class.isAssignableFrom(l.iterator().next().getClass())) {            
                 BasicDBList list = new BasicDBList();
                 for(Base b : (Collection<Base>)l)
                     list.add(convertBaseToDB(b, fullsave));
                 
                 return list;
+            }
+        }
+        
+        if (value instanceof Map) {
+            Map m = (Map)value; 
+
+            if(m.size() > 0 && m.keySet().iterator().next() instanceof String &&
+                    Base.class.isAssignableFrom(m.values().iterator().next().getClass())) {
+               BasicDBObject map = new BasicDBObject();
+               for(Map.Entry<String, Base> e : ((Map<String, Base>)m).entrySet())
+                   map.put(e.getKey(), convertBaseToDB(e.getValue(), fullsave));
+                
+               return map;
             }
         }
         
