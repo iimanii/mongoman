@@ -291,6 +291,9 @@ public abstract class Base {
     }
     
     private boolean load(Datastore store, boolean loadNested, Map<Key, DBObject> loaded) {
+        if(shallow)
+           throw new MongomanException("Shallow objects cannot be loaded: " + this.getClass().getName());
+        
         Key k = getKey();
         
         if(!loaded.containsKey(k))
@@ -464,6 +467,9 @@ public abstract class Base {
 
     /* deletes entity from datastore and memcache */
     public boolean delete(Datastore store, boolean nested) {
+        if(shallow)
+           throw new MongomanException("Shallow objects cannot be deleted: " + this.getClass().getName());
+        
         if(nested)
             deleteNested(store);
         
