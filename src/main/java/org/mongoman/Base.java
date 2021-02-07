@@ -337,6 +337,15 @@ public abstract class Base {
                         for(Base b : (Collection<Base>) l)
                             result &= b.load(store, true, loaded);
                     }
+                } else if (value instanceof Map) {
+                    Map m = (Map) value;
+
+                    if(m.size() > 0 && m.keySet().iterator().next() instanceof String &&
+                        Base.class.isAssignableFrom(m.values().iterator().next().getClass())) {
+
+                        for(Base b : ((Map<String, Base>)m).values())
+                            result &= b.load(store, true, loaded);
+                    }
                 }
             } catch (IllegalAccessException | IllegalArgumentException ex) {
                 throw new MongomanException(ex);
@@ -443,6 +452,16 @@ public abstract class Base {
                             if(!b.shallow)
                                 b.save(store, true);
                     }
+                } else if (value instanceof Map) {
+                    Map m = (Map) value;
+
+                    if(m.size() > 0 && m.keySet().iterator().next() instanceof String &&
+                        Base.class.isAssignableFrom(m.values().iterator().next().getClass())) {
+
+                        for(Base b : ((Map<String, Base>)m).values())
+                            if(!b.shallow)
+                                b.save(store, true);
+                    }
                 }
             } catch (IllegalAccessException | IllegalArgumentException ex) {
                 throw new MongomanException(ex);
@@ -500,6 +519,16 @@ public abstract class Base {
                     if (l.size() > 0 && Base.class.isAssignableFrom(l.iterator().next().getClass())) {
                         for(Base b : (Collection<Base>) l)
                             b.delete(store, true);
+                    }
+                } else if (value instanceof Map) {
+                    Map m = (Map) value;
+
+                    if(m.size() > 0 && m.keySet().iterator().next() instanceof String &&
+                        Base.class.isAssignableFrom(m.values().iterator().next().getClass())) {
+
+                        for(Base b : ((Map<String, Base>)m).values())
+                            if(!b.shallow)
+                                b.delete(store, true);
                     }
                 }
             } catch (IllegalAccessException | IllegalArgumentException ex) {
