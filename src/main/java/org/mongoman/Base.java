@@ -326,16 +326,19 @@ public abstract class Base {
                     continue;
             
                 if(value instanceof Base) {
-                    result &= ((Base) value).load(store, true, loaded);
+                    if(!((Base)value).shallow)
+                        result &= ((Base) value).load(store, true, loaded);
                 } else if (value instanceof Base[]) {
                     for(Base b : (Base[]) value)
-                        result &= b.load(store, true, loaded);
+                        if(!b.shallow)                        
+                            result &= b.load(store, true, loaded);
                 } else if (value instanceof Collection) {
                     Collection l = (Collection) value;
 
                     if (l.size() > 0 && Base.class.isAssignableFrom(l.iterator().next().getClass())) {
                         for(Base b : (Collection<Base>) l)
-                            result &= b.load(store, true, loaded);
+                            if(!b.shallow)
+                                result &= b.load(store, true, loaded);
                     }
                 } else if (value instanceof Map) {
                     Map m = (Map) value;
@@ -344,7 +347,8 @@ public abstract class Base {
                         Base.class.isAssignableFrom(m.values().iterator().next().getClass())) {
 
                         for(Base b : ((Map<String, Base>)m).values())
-                            result &= b.load(store, true, loaded);
+                            if(!b.shallow)
+                                result &= b.load(store, true, loaded);
                     }
                 }
             } catch (IllegalAccessException | IllegalArgumentException ex) {
@@ -509,16 +513,19 @@ public abstract class Base {
                     continue;
             
                 if(value instanceof Base) {
-                    ((Base) value).delete(store, true);
+                    if(!((Base)value).shallow)
+                        ((Base) value).delete(store, true);
                 } else if (value instanceof Base[]) {
                     for(Base b : (Base[]) value)
+                    if(!b.shallow)
                         b.delete(store, true);
                 } else if (value instanceof Collection) {
                     Collection l = (Collection) value;
 
                     if (l.size() > 0 && Base.class.isAssignableFrom(l.iterator().next().getClass())) {
                         for(Base b : (Collection<Base>) l)
-                            b.delete(store, true);
+                            if(!b.shallow)
+                                b.delete(store, true);
                     }
                 } else if (value instanceof Map) {
                     Map m = (Map) value;
