@@ -138,7 +138,7 @@ public class Datastore {
     }
     
     
-    private DBCollection getCollection(String name) {
+    public DBCollection getCollection(String name) {
         if(!Collections.containsKey(name))
             initCollection(name);
         
