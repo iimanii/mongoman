@@ -139,7 +139,7 @@ public class Query <T extends Base> {
     private int limit;
     private int batch;
     
-    public Query(Class<? extends Base> clazz) {
+    public Query(Class<T> clazz) {
         this.clazz = clazz;
         this.kind = ClassMap.getKind(clazz);
         this.keysOnly = false;

@@ -287,6 +287,7 @@ public abstract class Base {
      * @return true on success
      */
     public boolean load(Datastore store, boolean loadNested) {
+//        System.out.println(this.getKey() + " " + loadNested);
         return load(store, loadNested, new HashMap<>());
     }
     
