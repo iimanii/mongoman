@@ -424,12 +424,31 @@ public abstract class Base {
         if(saveNested)
             saveNested(store);
         
-        boolean isNew = store.put(kind, e, concern);
+        boolean isNew = store.save(kind, e, concern);
         
         if(isNew)
            _id = store.getObjectId(getKey());
         
         return isNew;
+    }
+    
+    public static void saveAll(List<? extends Base> list) {
+        saveAll(Datastore.fetchDefaultService(), list);
+    }
+    
+    public static void saveAll(Datastore store, List<? extends Base> list) {
+        Map<String, List<DBObject>> map = new HashMap<>();
+        
+        for(Base b : list) {
+            String kind = b.kind;
+            if(!map.containsKey(kind))
+                map.put(kind, new ArrayList<>());
+            
+            map.get(kind).add(b.toDBObject());
+        }
+        
+        for(Map.Entry<String, List<DBObject>> e : map.entrySet())
+            store.saveMany(e.getKey(), e.getValue());
     }
     
     protected void saveNested(Datastore store) {        

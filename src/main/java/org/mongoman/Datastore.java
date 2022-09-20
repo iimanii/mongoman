@@ -89,7 +89,7 @@ public class Datastore {
         return null;
     }
     
-    protected boolean put(String kind, DBObject data, WriteConcern concern) {
+    protected boolean save(String kind, DBObject data, WriteConcern concern) {
         WriteResult r;
 
         if(concern == null)
@@ -98,6 +98,10 @@ public class Datastore {
             r = getCollection(kind).save(data, concern);
         
         return !r.isUpdateOfExisting();
+    }
+    
+    protected void saveMany(String kind, List<DBObject> data) {
+        getCollection(kind).insert(data);
     }
     
     /* delete item using its key */
