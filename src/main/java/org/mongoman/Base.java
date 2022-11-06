@@ -600,6 +600,9 @@ public abstract class Base {
         
         Class<?> clazz = field.getType();
         
+        if(Enum.class.isAssignableFrom(clazz))
+            return Enum.valueOf((Class<Enum>)clazz, value.toString());
+        
         if(Base.class.isAssignableFrom(clazz))
            return createInstance((Class<? extends Base>)clazz, (DBObject) value);
         
@@ -799,7 +802,10 @@ public abstract class Base {
     private Object convertFieldToDB(Object value, boolean fullsave) {
         if(value == null)
             return null;
-        
+                
+        if(value instanceof Enum)
+            return ((Enum)value).name();
+
         if(value instanceof Base)
             return convertBaseToDB((Base) value, fullsave);
         
