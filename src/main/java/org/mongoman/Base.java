@@ -849,6 +849,6 @@ public abstract class Base {
         if(obj == null)
             return null;
         
-        return fullsave ? obj.toDBObject() : obj.getKey().data;
+        return fullsave || obj.shallow ? obj.toDBObject() : obj.getKey().data;
     }
 }
