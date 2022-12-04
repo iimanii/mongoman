@@ -51,6 +51,8 @@ public class Query <T extends Base> {
             
             if(value instanceof Base)
                this.value = ((Base)value).getKey().filterData;
+            else if(value instanceof Enum)
+                this.value = ((Enum)value).name();
         }
         
         public Filter(FilterOperator op, Filter... filters) {

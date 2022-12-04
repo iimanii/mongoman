@@ -421,10 +421,11 @@ public abstract class Base {
            throw new MongomanException("Shallow objects cannot be saved: " + this.getClass().getName());
         
         DBObject e = toDBObject();
-        if(saveNested)
-            saveNested(store);
         
         boolean isNew = store.save(kind, e, concern);
+        
+        if(saveNested)
+            saveNested(store);
         
         if(isNew)
            _id = store.getObjectId(getKey());
