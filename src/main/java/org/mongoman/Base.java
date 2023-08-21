@@ -632,17 +632,24 @@ public abstract class Base {
     }
     
     private Map convertDBToMapField(BasicDBObject map, Field field) {
-        Class<?> base = getGenericBaseType(field.getGenericType(), 1);
+        Class<?> ckey = (Class<?>)((ParameterizedType)field.getGenericType()).getActualTypeArguments()[0];
+        Class<?> cval = getGenericBaseType(field.getGenericType(), 1);
+                
+        boolean isKeyEnum = Enum.class.isAssignableFrom(ckey);
+        boolean isValBase = cval != null;
         
-        if(base == null)
+        if(!isKeyEnum && !isValBase)
             return map;
         
-        Map<String, Base> result = new LinkedHashMap<>();
+        Map<Object, Object> result = new LinkedHashMap<>();
         
         for(Map.Entry<String, Object> e : map.entrySet()) {
             Object o = e.getValue();
-            if(o != null)
-                result.put(e.getKey(), createInstance((Class<? extends Base>) base, (DBObject) o));
+            if(o != null) {
+                Object mkey = isKeyEnum ? Enum.valueOf((Class<Enum>)ckey, e.getKey()) : e.getKey();
+                Object mval = isValBase ? createInstance((Class<? extends Base>) cval, (DBObject) o) : o;
+                result.put(mkey, mval);
+            }
         }
 
         return result;
@@ -831,15 +838,26 @@ public abstract class Base {
         }
         
         if (value instanceof Map) {
-            Map m = (Map)value; 
-
-            if(m.size() > 0 && m.keySet().iterator().next() instanceof String &&
-                    Base.class.isAssignableFrom(m.values().iterator().next().getClass())) {
-               BasicDBObject map = new BasicDBObject();
-               for(Map.Entry<String, Base> e : ((Map<String, Base>)m).entrySet())
-                   map.put(e.getKey(), convertBaseToDB(e.getValue(), fullsave));
+            Map<Object, Object> m = (Map)value; 
+            
+            if(m.size() > 0) {                
+                Class<?> ckey = m.keySet().iterator().next().getClass();
+                Class<?> cval = m.values().iterator().next().getClass();
                 
-               return map;
+                boolean isKeyEnum = Enum.class.isAssignableFrom(ckey);
+                boolean isValBase = Base.class.isAssignableFrom(cval);
+                
+                if(isKeyEnum || isValBase) {
+                    BasicDBObject map = new BasicDBObject();
+                    
+                    for(Map.Entry<Object, Object> e : m.entrySet()) {
+                        String key = isKeyEnum ? e.getKey().toString() : (String) e.getKey();
+                        Object val = isValBase ? convertBaseToDB((Base)e.getValue(), fullsave) : e.getValue();
+                        map.put(key, val);
+                    }
+    
+                    return map;
+                }
             }
         }
         

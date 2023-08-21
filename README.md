@@ -2,7 +2,6 @@
 
 Mongoman is an easy to use framework that maps your java classes to mongodb objects
 
-
 # Installation
 
 Download dist/mongoman.jar and include it in your libraries (or compile your own version)
@@ -13,7 +12,7 @@ Must also include mongo-java-driver in your project
 
 #### Loading and storing objects into mongodb
 - Implement a class that **extends** mongoman.Base
-- Your class will represent one unique collection in the database
+- Each class will represent a unique collection in the database
 - Collection name must be passed via @Kind annotation with the class
 - Only **non-static public** fields get stored
 - **non-static final public** fields are used as keys to load and store the objects and marked as unique index (they cannot repeat)
@@ -55,7 +54,7 @@ c.save();
 ```
 
 #### Supported types
-Not all fields can be serialized into mongodb, the following are the ones guaranteed to work
+Not all fields are automatically serialized into mongodb, the following are the ones guaranteed to work
 
 - All primitive types (int, byte, float, ...)
 - All primitive type arrays (int[], byte[], float[], ....)
@@ -67,6 +66,7 @@ Not all fields can be serialized into mongodb, the following are the ones guaran
 - Any class that extends mongoman.Base
 - An array of any class that extends mongoman.Base
 - java.util.Map<String, ? extends mongoman.Base>
+- java.util.Map<Enum, ? extends mongoman.Base>
 
 Note that using when using java.util.Set, 2 Base objects are considered equal if their keys are equal (final fields)
 if you wish to change this behavior you must implement "equals" and "hashCode" for your class
@@ -74,8 +74,7 @@ if you wish to change this behavior you must implement "equals" and "hashCode" f
 #### Keys
 Mongoman uses keys to load and save objects, keys are composed of the mongo _id field plus any **final** field defined in the object
 
-Usage of keys is implicit within mongoman framework and is just mentioned here for clarity
-
+Usage of keys is implicit within mongoman and is just mentioned here for clarity
 
 #### Working with nested objects
 Mongoman allows the usage of nested Base classes

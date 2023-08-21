@@ -76,8 +76,10 @@ public class Key {
             /* in case of a Base class .. only use its key */
             if(value instanceof Base)
                 result.append(name, ((Base) value).getKey().data);
+            else if(value instanceof Enum)
+                result.append(name, ((Enum)value).name());
             else
-                result.append(field.getName(), value);
+                result.append(name, value);
         }
         return result;
     }
