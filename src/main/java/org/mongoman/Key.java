@@ -24,6 +24,7 @@
 package org.mongoman;
 
 import com.mongodb.BasicDBObject;
+import java.io.Serializable;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.util.Arrays;
@@ -37,7 +38,7 @@ import org.mongoman.Query.Filter;
  *
  * @author ahmed
  */
-public class Key {
+public class Key implements Serializable {
     public final String kind;
     protected final BasicDBObject data;
     protected final BasicDBObject filterData;

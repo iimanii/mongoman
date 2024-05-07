@@ -27,6 +27,7 @@ import com.mongodb.BasicDBList;
 import com.mongodb.BasicDBObject;
 import com.mongodb.DBObject;
 import com.mongodb.WriteConcern;
+import java.io.Serializable;
 import java.lang.reflect.Array;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
@@ -36,12 +37,15 @@ import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import org.bson.json.JsonMode;
+import org.bson.json.JsonWriterSettings;
 import org.bson.types.ObjectId;
 
 /**
@@ -51,7 +55,7 @@ import org.bson.types.ObjectId;
  *
  */
 
-public abstract class Base {
+public abstract class Base implements Serializable {
     /* collection name */
     private final String kind;
     
@@ -206,10 +210,10 @@ public abstract class Base {
     }
     
     /* creates dbobject from item */
-    protected DBObject toDBObject() {
+    protected BasicDBObject toDBObject(boolean ignore_null, boolean export_mode) {
         BasicDBObject data = new BasicDBObject();
         
-        if(_id != null)
+        if(!export_mode && _id != null)
             data.put("_id", _id);
         
         /* Get all public fields of the class */
@@ -221,20 +225,37 @@ public abstract class Base {
                 continue;
             
             String name = field.getName();
-
+            
             try {
                 Object value = field.get(this);
                 
-                if(ignoreNull && value == null)
+                if(ignore_null && value == null)
                     continue;
                 
-                data.append(name, convertFieldToDB(value, field.isAnnotationPresent(FullSave.class)));
+                data.append(name, convertFieldToDB(value, export_mode || field.isAnnotationPresent(FullSave.class), ignore_null, export_mode));
             } catch (IllegalAccessException | IllegalArgumentException ex) {
                 throw new MongomanException(ex);
             }
         }
         
         return data;
+    }
+        
+    
+    private static final JsonWriterSettings DEFAULT_JSONWRITER_SETTINGS = 
+        JsonWriterSettings.builder()
+                .dateTimeConverter((value, writer) -> {
+                    writer.writeNumber(Long.toString(value));
+                }).objectIdConverter((value, writer) -> {
+                    writer.writeNull();
+                }).outputMode(JsonMode.RELAXED).build();
+    
+    public String toJSON(boolean ignoreNull) {
+        BasicDBObject data = toDBObject(ignoreNull, true);
+        
+        JsonWriterSettings settings = DEFAULT_JSONWRITER_SETTINGS;
+        
+        return data.toJson(settings);
     }
     
     /**
@@ -420,7 +441,7 @@ public abstract class Base {
         if(shallow)
            throw new MongomanException("Shallow objects cannot be saved: " + this.getClass().getName());
         
-        DBObject e = toDBObject();
+        DBObject e = toDBObject(ignoreNull, false);
         
         boolean isNew = store.save(kind, e, concern);
         
@@ -445,7 +466,7 @@ public abstract class Base {
             if(!map.containsKey(kind))
                 map.put(kind, new ArrayList<>());
             
-            map.get(kind).add(b.toDBObject());
+            map.get(kind).add(b.toDBObject(b.ignoreNull, false));
         }
         
         for(Map.Entry<String, List<DBObject>> e : map.entrySet())
@@ -807,20 +828,20 @@ public abstract class Base {
     }
     
     /* Helper functions for saving */
-    private Object convertFieldToDB(Object value, boolean fullsave) {
+    private Object convertFieldToDB(Object value, boolean fullsave, boolean ignore_null, boolean export_mode) {
         if(value == null)
             return null;
-                
+        
         if(value instanceof Enum)
             return ((Enum)value).name();
 
         if(value instanceof Base)
-            return convertBaseToDB((Base) value, fullsave);
+            return convertBaseToDB((Base) value, fullsave, ignore_null, export_mode);
         
         if (value instanceof Base[]) {
             BasicDBList list = new BasicDBList();
             for(Base b : (Base[])value)
-                list.add(convertBaseToDB((Base) b, fullsave));
+                list.add(convertBaseToDB((Base) b, fullsave, ignore_null, export_mode));
             
             return list;
         }
@@ -831,7 +852,7 @@ public abstract class Base {
             if(l.size() > 0 && Base.class.isAssignableFrom(l.iterator().next().getClass())) {            
                 BasicDBList list = new BasicDBList();
                 for(Base b : (Collection<Base>)l)
-                    list.add(convertBaseToDB(b, fullsave));
+                    list.add(convertBaseToDB(b, fullsave, ignore_null, export_mode));
                 
                 return list;
             }
@@ -852,7 +873,7 @@ public abstract class Base {
                     
                     for(Map.Entry<Object, Object> e : m.entrySet()) {
                         String key = isKeyEnum ? e.getKey().toString() : (String) e.getKey();
-                        Object val = isValBase ? convertBaseToDB((Base)e.getValue(), fullsave) : e.getValue();
+                        Object val = isValBase ? convertBaseToDB((Base)e.getValue(), fullsave, ignore_null, export_mode) : e.getValue();
                         map.put(key, val);
                     }
     
@@ -864,10 +885,10 @@ public abstract class Base {
         return value;
     }
     
-    private DBObject convertBaseToDB(Base obj, boolean fullsave) {
+    private DBObject convertBaseToDB(Base obj, boolean fullsave, boolean ignore_null, boolean export_mode) {
         if(obj == null)
             return null;
         
-        return fullsave || obj.shallow ? obj.toDBObject() : obj.getKey().data;
+        return fullsave || obj.shallow ? obj.toDBObject(ignore_null, export_mode) : obj.getKey().data;
     }
 }
