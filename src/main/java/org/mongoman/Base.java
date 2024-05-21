@@ -67,7 +67,9 @@ public abstract class Base implements Serializable {
     
     /* enable this to remove extra/obsolete properties found in database object and are not defined in the class */
     private final boolean ignoreUnknownProperties;
-
+    
+    private final ExportMode dbExportMode;
+    
     /* Key */
     private Key key;
     
@@ -83,6 +85,7 @@ public abstract class Base implements Serializable {
         this.shallow = v.shallow;
         this.ignoreNull = v.ignoreNull;
         this.ignoreUnknownProperties = v.ignoreUnknownProperties;
+        this.dbExportMode = new ExportMode(false, this.ignoreNull, false);
     }
     
     final public Key getKey() {
@@ -210,10 +213,10 @@ public abstract class Base implements Serializable {
     }
     
     /* creates dbobject from item */
-    protected BasicDBObject toDBObject(boolean ignore_null, boolean export_mode) {
+    protected BasicDBObject toDBObject(ExportMode mode) {
         BasicDBObject data = new BasicDBObject();
         
-        if(!export_mode && _id != null)
+        if(!mode.json && _id != null)
             data.put("_id", _id);
         
         /* Get all public fields of the class */
@@ -229,10 +232,10 @@ public abstract class Base implements Serializable {
             try {
                 Object value = field.get(this);
                 
-                if(ignore_null && value == null)
+                if(mode.ignore_null && value == null)
                     continue;
                 
-                data.append(name, convertFieldToDB(value, export_mode || field.isAnnotationPresent(FullSave.class), ignore_null, export_mode));
+                data.append(name, convertFieldToDB(value, mode.export_inner || field.isAnnotationPresent(FullSave.class), mode));
             } catch (IllegalAccessException | IllegalArgumentException ex) {
                 throw new MongomanException(ex);
             }
@@ -250,8 +253,8 @@ public abstract class Base implements Serializable {
                     writer.writeNull();
                 }).outputMode(JsonMode.RELAXED).build();
     
-    public String toJSON(boolean ignoreNull) {
-        BasicDBObject data = toDBObject(ignoreNull, true);
+    public String toJSON(ExportMode mode) {
+        BasicDBObject data = toDBObject(mode);
         
         JsonWriterSettings settings = DEFAULT_JSONWRITER_SETTINGS;
         
@@ -441,7 +444,7 @@ public abstract class Base implements Serializable {
         if(shallow)
            throw new MongomanException("Shallow objects cannot be saved: " + this.getClass().getName());
         
-        DBObject e = toDBObject(ignoreNull, false);
+        DBObject e = toDBObject(this.dbExportMode);
         
         boolean isNew = store.save(kind, e, concern);
         
@@ -466,7 +469,7 @@ public abstract class Base implements Serializable {
             if(!map.containsKey(kind))
                 map.put(kind, new ArrayList<>());
             
-            map.get(kind).add(b.toDBObject(b.ignoreNull, false));
+            map.get(kind).add(b.toDBObject(b.dbExportMode));
         }
         
         for(Map.Entry<String, List<DBObject>> e : map.entrySet())
@@ -828,7 +831,7 @@ public abstract class Base implements Serializable {
     }
     
     /* Helper functions for saving */
-    private Object convertFieldToDB(Object value, boolean fullsave, boolean ignore_null, boolean export_mode) {
+    private Object convertFieldToDB(Object value, boolean fullsave, ExportMode mode) {
         if(value == null)
             return null;
         
@@ -836,12 +839,12 @@ public abstract class Base implements Serializable {
             return ((Enum)value).name();
 
         if(value instanceof Base)
-            return convertBaseToDB((Base) value, fullsave, ignore_null, export_mode);
+            return convertBaseToDB((Base) value, fullsave, mode);
         
         if (value instanceof Base[]) {
             BasicDBList list = new BasicDBList();
             for(Base b : (Base[])value)
-                list.add(convertBaseToDB((Base) b, fullsave, ignore_null, export_mode));
+                list.add(convertBaseToDB((Base) b, fullsave, mode));
             
             return list;
         }
@@ -852,7 +855,7 @@ public abstract class Base implements Serializable {
             if(l.size() > 0 && Base.class.isAssignableFrom(l.iterator().next().getClass())) {            
                 BasicDBList list = new BasicDBList();
                 for(Base b : (Collection<Base>)l)
-                    list.add(convertBaseToDB(b, fullsave, ignore_null, export_mode));
+                    list.add(convertBaseToDB(b, fullsave, mode));
                 
                 return list;
             }
@@ -873,7 +876,7 @@ public abstract class Base implements Serializable {
                     
                     for(Map.Entry<Object, Object> e : m.entrySet()) {
                         String key = isKeyEnum ? e.getKey().toString() : (String) e.getKey();
-                        Object val = isValBase ? convertBaseToDB((Base)e.getValue(), fullsave, ignore_null, export_mode) : e.getValue();
+                        Object val = isValBase ? convertBaseToDB((Base)e.getValue(), fullsave, mode) : e.getValue();
                         map.put(key, val);
                     }
     
@@ -885,10 +888,10 @@ public abstract class Base implements Serializable {
         return value;
     }
     
-    private DBObject convertBaseToDB(Base obj, boolean fullsave, boolean ignore_null, boolean export_mode) {
+    private DBObject convertBaseToDB(Base obj, boolean fullsave, ExportMode mode) {
         if(obj == null)
             return null;
         
-        return fullsave || obj.shallow ? obj.toDBObject(ignore_null, export_mode) : obj.getKey().data;
+        return fullsave || obj.shallow ? obj.toDBObject(mode) : obj.getKey().data;
     }
 }
