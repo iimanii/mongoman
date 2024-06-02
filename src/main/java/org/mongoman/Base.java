@@ -683,32 +683,29 @@ public abstract class Base implements Serializable {
         Object[] data = list.toArray();
         Class<?> clazz = field.getType();
         Class<?> base = getGenericBaseType(field.getGenericType());
+        Class<Enum> enumm = getGenericEnumType(field.getGenericType());
         
-        if(List.class.isAssignableFrom(clazz)) {
-            if(base == null)
-                return list;
-
-            List<Base> result = new ArrayList<>();
-
-            for(Object o : data)
-                if(o != null)
-                    result.add(createInstance((Class<? extends Base>) base, (DBObject) o));
-
-            return result;
-        } else if(Set.class.isAssignableFrom(clazz)) {
-            if(base == null)
-                return new HashSet<>(list);
-
-            Set<Base> result = new HashSet<>();
-
-            for(Object o : data)
-                if(o != null)
-                    result.add(createInstance((Class<? extends Base>) base, (DBObject) o));
-
-            return result;            
+        Collection<?> result;
+        
+        if (List.class.isAssignableFrom(clazz))
+            result = new ArrayList<>();
+        else if (Set.class.isAssignableFrom(clazz))
+            result = new HashSet<>();
+        else
+            return list;
+        
+        for (Object o : data) {
+            if (o != null) {
+                if (enumm != null)
+                    ((Collection<Enum>) result).add(Enum.valueOf(enumm, o.toString()));
+                else if (base != null)
+                    ((Collection<Base>) result).add(createInstance((Class<? extends Base>) base, (DBObject) o));
+                else
+                    ((Collection<Object>) result).add(o);
+            }
         }
-        
-        return list;
+
+        return result;
     }
     
     private Object convertDBToArrayField(BasicDBList list, Class<?> clazz) {
@@ -830,6 +827,26 @@ public abstract class Base implements Serializable {
         return null;
     }
     
+    private Class<Enum> getGenericEnumType(Type genericType) {
+        return getGenericEnumType(genericType, 0);
+    }
+    
+    private Class<Enum> getGenericEnumType(Type genericType, int index) {
+        if (genericType instanceof ParameterizedType) {
+            Type[] types = ((ParameterizedType)genericType).getActualTypeArguments();
+            
+            if(types.length == 0)
+                return null;
+            
+            Type type0 = types[index];
+            
+            if(type0 instanceof Class && Enum.class.isAssignableFrom((Class<?>)types[index]))
+                return (Class<Enum>)type0;
+        }
+        
+        return null;
+    }
+    
     /* Helper functions for saving */
     private Object convertFieldToDB(Object value, boolean fullsave, ExportMode mode) {
         if(value == null)
@@ -837,7 +854,7 @@ public abstract class Base implements Serializable {
         
         if(value instanceof Enum)
             return ((Enum)value).name();
-
+        
         if(value instanceof Base)
             return convertBaseToDB((Base) value, fullsave, mode);
         
@@ -852,12 +869,24 @@ public abstract class Base implements Serializable {
         if (value instanceof Collection) {
             Collection l = (Collection)value; 
 
-            if(l.size() > 0 && Base.class.isAssignableFrom(l.iterator().next().getClass())) {            
-                BasicDBList list = new BasicDBList();
-                for(Base b : (Collection<Base>)l)
-                    list.add(convertBaseToDB(b, fullsave, mode));
+            if(l.size() > 0) {
+                Object first = l.iterator().next();
                 
-                return list;
+                if(Base.class.isAssignableFrom(first.getClass())) {
+                    BasicDBList list = new BasicDBList();
+                    for(Base b : (Collection<Base>)l)
+                        list.add(convertBaseToDB(b, fullsave, mode));
+
+                    return list;
+                }
+                
+                if(first instanceof Enum) {
+                    BasicDBList list = new BasicDBList();
+                    for(Enum e : (Collection<Enum>)l)
+                        list.add(e.name());
+
+                    return list;                    
+                }
             }
         }
         

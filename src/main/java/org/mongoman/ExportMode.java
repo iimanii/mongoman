@@ -28,10 +28,10 @@ package org.mongoman;
  * @author ahmed
  */
 public class ExportMode {
-    public static final ExportMode JSON = new ExportMode(true, false, false);
-    public static final ExportMode JSON_WITH_NULL = new ExportMode(true, true, false);
-    public static final ExportMode JSON_FULL_INNER = new ExportMode(true, false, true);
-    public static final ExportMode JSON_FULL_INNER_WITH_NULL = new ExportMode(true, true, true);
+    public static final ExportMode JSON = new ExportMode(true, true, false);
+    public static final ExportMode JSON_WITH_NULL = new ExportMode(true, false, false);
+    public static final ExportMode JSON_FULL_INNER = new ExportMode(true, true, true);
+    public static final ExportMode JSON_FULL_INNER_WITH_NULL = new ExportMode(true, false, true);
     
     final boolean json;
     final boolean ignore_null;
