@@ -683,7 +683,7 @@ public abstract class Base implements Serializable {
         Object[] data = list.toArray();
         Class<?> clazz = field.getType();
         Class<?> base = getGenericBaseType(field.getGenericType());
-        Class<Enum> enumm = getGenericEnumType(field.getGenericType());
+        Class<Enum> cenum = getGenericEnumType(field.getGenericType());
         
         Collection<?> result;
         
@@ -696,8 +696,8 @@ public abstract class Base implements Serializable {
         
         for (Object o : data) {
             if (o != null) {
-                if (enumm != null)
-                    ((Collection<Enum>) result).add(Enum.valueOf(enumm, o.toString()));
+                if (cenum != null)
+                    ((Collection<Enum>) result).add(Enum.valueOf(cenum, o.toString()));
                 else if (base != null)
                     ((Collection<Base>) result).add(createInstance((Class<? extends Base>) base, (DBObject) o));
                 else
@@ -727,6 +727,7 @@ public abstract class Base implements Serializable {
         return array;
     }
     
+    /* Primitive types */
     private void copyPrimitiveArray(Object[] src, Object dst) {
         Class<?> type = dst.getClass().getComponentType();
         
@@ -807,6 +808,7 @@ public abstract class Base implements Serializable {
         return value;
     }
 
+    /* Generic type helper functions */
     private Class<?> getGenericBaseType(Type genericType) {
         return getGenericBaseType(genericType, 0);
     }
@@ -820,8 +822,16 @@ public abstract class Base implements Serializable {
             
             Type type0 = types[index];
             
-            if(type0 instanceof Class && Base.class.isAssignableFrom((Class<?>)types[index]))
+            if(type0 instanceof Class && Base.class.isAssignableFrom((Class<?>)type0))
                 return (Class<?>)type0;
+            
+            /* if the generic type is in itself another generic */
+            if(type0 instanceof ParameterizedType) {
+                Type type1 = ((ParameterizedType)type0).getRawType();
+                
+                if(type1 instanceof Class && Base.class.isAssignableFrom((Class<?>)type1))
+                    return (Class<?>)type1;
+            }
         }
         
         return null;
