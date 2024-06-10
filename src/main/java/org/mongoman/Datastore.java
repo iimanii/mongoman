@@ -255,4 +255,8 @@ public class Datastore {
     public MongoClient getMongoClient() {
         return mongoClient;
     }
+    
+    public void shutdown() {
+        mongoClient.close();
+    }
 }

@@ -261,6 +261,25 @@ public abstract class Base implements Serializable {
         return data.toJson(settings);
     }
     
+    public static String toJSON(Map map, ExportMode mode) {
+        BasicDBObject data = (BasicDBObject) convertFieldToDB(map, mode.export_inner, mode);
+        
+        JsonWriterSettings settings = DEFAULT_JSONWRITER_SETTINGS;
+        
+        return data.toJson(settings);
+    }
+    
+    public static String toJSON(Collection collection, String name, ExportMode mode) {
+        BasicDBList list = (BasicDBList)convertFieldToDB(collection, mode.export_inner, mode);
+        
+        BasicDBObject data = new BasicDBObject();
+        data.put(name, list);
+        
+        JsonWriterSettings settings = DEFAULT_JSONWRITER_SETTINGS;
+        
+        return data.toJson(settings);
+    }
+    
     /**
      * Uses key to checks if object exists in db
      * @return true if item is stored in db
@@ -858,7 +877,7 @@ public abstract class Base implements Serializable {
     }
     
     /* Helper functions for saving */
-    private Object convertFieldToDB(Object value, boolean fullsave, ExportMode mode) {
+    private static Object convertFieldToDB(Object value, boolean fullsave, ExportMode mode) {
         if(value == null)
             return null;
         
@@ -897,7 +916,8 @@ public abstract class Base implements Serializable {
 
                     return list;                    
                 }
-            }
+            } else
+                return new BasicDBList();
         }
         
         if (value instanceof Map) {
@@ -921,16 +941,17 @@ public abstract class Base implements Serializable {
     
                     return map;
                 }
-            }
+            } else
+                return new BasicDBObject();
         }
         
         return value;
     }
     
-    private DBObject convertBaseToDB(Base obj, boolean fullsave, ExportMode mode) {
+    private static DBObject convertBaseToDB(Base obj, boolean fullsave, ExportMode mode) {
         if(obj == null)
             return null;
         
-        return fullsave || obj.shallow ? obj.toDBObject(mode) : obj.getKey().data;
+        return fullsave ? obj.toDBObject(mode) : obj.getKey().data;
     }
 }

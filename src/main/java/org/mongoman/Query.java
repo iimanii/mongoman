@@ -25,8 +25,11 @@ package org.mongoman;
 
 import com.mongodb.BasicDBList;
 import com.mongodb.BasicDBObject;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -53,6 +56,19 @@ public class Query <T extends Base> {
                this.value = ((Base)value).getKey().filterData;
             else if(value instanceof Enum)
                 this.value = ((Enum)value).name();
+            else if(value instanceof Collection) {
+                if(((Collection) value).isEmpty())
+                    this.value = value;
+                else {
+                    Object first = ((Collection) value).iterator().next();
+                    this.value = new ArrayList<>();
+                    if(first instanceof Enum) {
+                        for (Enum e : (List<Enum>)value) 
+                            ((List<String>)this.value).add(e.name());
+                    } else
+                        this.value = value;
+                }
+            }
         }
         
         public Filter(FilterOperator op, Filter... filters) {
