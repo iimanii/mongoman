@@ -201,7 +201,7 @@ public abstract class Base implements Serializable {
                 Object value = data.get(name);
                 
                 try {
-                    field.set(this, convertDBToField(value, field));
+                    field.set(this, convertDBToField(value, new TypeInfo(field)));
                 } catch (IllegalAccessException | IllegalArgumentException ex) {
                     throw new MongomanException(ex);
                 }
@@ -642,110 +642,154 @@ public abstract class Base implements Serializable {
     }
     
     /* Helper functions for loading */
-    private Object convertDBToField(Object value, Field field) {
+    public static class TypeInfo {
+        final Class<?> clazz;
+        final Type genericType;
+        
+        public TypeInfo(Type type) {
+            if (type instanceof Class<?>) {
+                this.clazz = (Class<?>) type;
+                this.genericType = type;
+            } else if (type instanceof ParameterizedType) {
+                ParameterizedType parameterizedType = (ParameterizedType) type;
+                this.clazz = (Class<?>) parameterizedType.getRawType();
+                this.genericType = parameterizedType;
+            } else {
+                throw new IllegalArgumentException("Unsupported type: " + type);
+            }
+        }
+        
+        public TypeInfo(Field field) {
+            this.clazz = field.getType();
+            this.genericType = field.getGenericType();
+        }
+        
+        public TypeInfo getGenericArgument(int index) {
+            if (genericType instanceof ParameterizedType) {
+                Type[] args = ((ParameterizedType)genericType).getActualTypeArguments();
+                
+                if (index >= 0 && index < args.length)
+                    return new TypeInfo(args[index]);
+                else
+                    throw new IllegalArgumentException("Index " + index + " out of bounds for type arguments");
+            }
+            
+            throw new IllegalArgumentException("Type " + clazz.getName() + " does not have generic arguments");
+        }
+        
+        public Class<?> getComponentType() {
+            return clazz.getComponentType();
+        }
+        
+        public boolean isEnum() {
+            return clazz.isEnum();
+        }
+
+        public boolean isMap() {
+            return Map.class.isAssignableFrom(clazz);
+        }
+
+        public boolean isCollection() {
+            return Collection.class.isAssignableFrom(clazz);
+        }
+        
+        public boolean isList() {
+            return List.class.isAssignableFrom(clazz);
+        }
+        
+        public boolean isSet() {
+            return Set.class.isAssignableFrom(clazz);
+        }
+
+        public boolean isArray() {
+            return clazz.isArray();
+        }
+        
+        public boolean isBase() {
+            return Base.class.isAssignableFrom(clazz);
+        }
+        
+        public boolean isPrimitive() {
+            return clazz.isPrimitive();
+        }
+        
+        public Class<Enum> getEnumType() {
+            return (Class<Enum>) clazz;
+        }
+        
+        public Class<? extends Base> getBaseType() {
+            return (Class<? extends Base>) clazz;
+        }
+    }
+    
+    private Object convertDBToField(Object value, TypeInfo type) {
         if(value == null)
             return null;
         
-        Class<?> clazz = field.getType();
+        if(type.isEnum())
+            return Enum.valueOf(type.getEnumType(), value.toString());
         
-        if(Enum.class.isAssignableFrom(clazz))
-            return Enum.valueOf((Class<Enum>)clazz, value.toString());
+        if(type.isBase())
+           return createInstance(type.getBaseType(), (DBObject) value);
         
-        if(Base.class.isAssignableFrom(clazz))
-           return createInstance((Class<? extends Base>)clazz, (DBObject) value);
-        
-        if(value instanceof BasicDBList) {
-            BasicDBList list = (BasicDBList)value;
-
-            if(Collection.class.isAssignableFrom(clazz))
-                return convertDBToCollectionField(list, field);
+        if(type.isCollection())
+            return convertDBToCollectionField((BasicDBList)value, type);
             
-            if(clazz.isArray())
-                return convertDBToArrayField(list, clazz);
-            
-            return value;
-        }
+        if(type.isArray())
+            return convertDBToArrayField((BasicDBList)value, type);
         
-        if(value instanceof BasicDBObject) {
-            BasicDBObject map = (BasicDBObject)value;
-
-            if(Map.class.isAssignableFrom(clazz))
-                return convertDBToMapField(map, field);
-            
-            return value;            
-        }
+        if(type.isMap())
+            return convertDBToMapField((BasicDBObject)value, type);
         
-        return clazz.isPrimitive() ? convertPrimitiveType(value, clazz) : value;
+        return type.isPrimitive() ? convertPrimitiveType(value, type.clazz) : value;
     }
     
-    private Map convertDBToMapField(BasicDBObject map, Field field) {
-        Class<?> ckey = (Class<?>)((ParameterizedType)field.getGenericType()).getActualTypeArguments()[0];
-        Class<?> cval = getGenericBaseType(field.getGenericType(), 1);
-                
-        boolean isKeyEnum = Enum.class.isAssignableFrom(ckey);
-        boolean isValBase = cval != null;
-        
-        if(!isKeyEnum && !isValBase)
-            return map;
+    private Map convertDBToMapField(BasicDBObject map, TypeInfo type) {
+        TypeInfo tkey = type.getGenericArgument(0);
+        TypeInfo tval = type.getGenericArgument(1);
         
         Map<Object, Object> result = new LinkedHashMap<>();
         
         for(Map.Entry<String, Object> e : map.entrySet()) {
             Object o = e.getValue();
-            if(o != null) {
-                Object mkey = isKeyEnum ? Enum.valueOf((Class<Enum>)ckey, e.getKey()) : e.getKey();
-                Object mval = isValBase ? createInstance((Class<? extends Base>) cval, (DBObject) o) : o;
-                result.put(mkey, mval);
-            }
+            Object mkey = tkey.isEnum() ? Enum.valueOf(tkey.getEnumType(), e.getKey()) : e.getKey();
+            Object mval = convertDBToField(o, tval);
+            result.put(mkey, mval);
         }
 
         return result;
     }
     
-    private Collection convertDBToCollectionField(BasicDBList list, Field field) {
-        Object[] data = list.toArray();
-        Class<?> clazz = field.getType();
-        Class<?> base = getGenericBaseType(field.getGenericType());
-        Class<Enum> cenum = getGenericEnumType(field.getGenericType());
+    private Collection convertDBToCollectionField(BasicDBList list, TypeInfo type) {        
+        Collection<Object> result;
         
-        Collection<?> result;
-        
-        if (List.class.isAssignableFrom(clazz))
+        if (type.isList())
             result = new ArrayList<>();
-        else if (Set.class.isAssignableFrom(clazz))
+        else if (type.isSet())
             result = new HashSet<>();
         else
             return list;
         
-        for (Object o : data) {
-            if (o != null) {
-                if (cenum != null)
-                    ((Collection<Enum>) result).add(Enum.valueOf(cenum, o.toString()));
-                else if (base != null)
-                    ((Collection<Base>) result).add(createInstance((Class<? extends Base>) base, (DBObject) o));
-                else
-                    ((Collection<Object>) result).add(o);
-            }
+        for (Object o : list) {
+            result.add(convertDBToField(o, type.getGenericArgument(0)));
         }
 
         return result;
     }
     
-    private Object convertDBToArrayField(BasicDBList list, Class<?> clazz) {
-        Object[] data = list.toArray();
-        Object array = Array.newInstance(clazz.getComponentType(), data.length);
-        Class<?> component = clazz.getComponentType();
+    private Object convertDBToArrayField(BasicDBList list, TypeInfo type) {
+        Class<?> componentType = type.getComponentType();
+        Object array = Array.newInstance(componentType, list.size());
+        
+        if(componentType.isPrimitive())
+            copyPrimitiveArray(list.toArray(), array);
+        else {
+            TypeInfo itemType = new TypeInfo(componentType);
 
-        if(!component.isPrimitive()) {
-            if(Base.class.isAssignableFrom(component)) {
-                Base[] a = (Base[]) array;
-                for(int i=0; i < data.length; i++)
-                    if(data[i] != null)
-                        a[i] = createInstance((Class<? extends Base>)clazz.getComponentType(), (DBObject) data[i]);
-            } else
-                System.arraycopy(data, 0, (Object[]) array, 0, data.length);
-        } else
-            copyPrimitiveArray(data, array);
+            for(int i=0; i < list.size(); i++) {
+                Array.set(array, i, convertDBToField(list.get(i), itemType));
+            }
+        }
 
         return array;
     }
@@ -882,14 +926,14 @@ public abstract class Base implements Serializable {
     
     /* Helper functions for saving */
     private static Object convertFieldToDB(Object value, boolean fullsave, ExportMode mode, int depth) {
+        /* increment depth as we're in a field */
+        depth++;
+        
         if(value == null)
             return null;
         
         if(value instanceof Enum)
             return ((Enum)value).name();
-        
-        /* increment depth as we're in a field */
-        depth++;
         
         if(value instanceof Base)
             return convertBaseToDB((Base) value, fullsave, mode, depth);
@@ -902,57 +946,36 @@ public abstract class Base implements Serializable {
             return list;
         }
         
-        if (value instanceof Collection) {
-            Collection l = (Collection)value; 
-
-            if(l.size() > 0) {
-                Object first = l.iterator().next();
-                
-                if(Base.class.isAssignableFrom(first.getClass())) {
-                    BasicDBList list = new BasicDBList();
-                    for(Base b : (Collection<Base>)l)
-                        list.add(convertBaseToDB(b, fullsave, mode, depth));
-
-                    return list;
-                }
-                
-                if(first instanceof Enum) {
-                    BasicDBList list = new BasicDBList();
-                    for(Enum e : (Collection<Enum>)l)
-                        list.add(e.name());
-
-                    return list;                    
-                }
-            } else
-                return new BasicDBList();
-        }
+        if (value instanceof Collection)
+            return convertCollectionToDB((Collection)value, fullsave, mode, depth);
         
-        if (value instanceof Map) {
-            Map<Object, Object> m = (Map)value; 
-            
-            if(m.size() > 0) {                
-                Class<?> ckey = m.keySet().iterator().next().getClass();
-                Class<?> cval = m.values().iterator().next().getClass();
-                
-                boolean isKeyEnum = Enum.class.isAssignableFrom(ckey);
-                boolean isValBase = Base.class.isAssignableFrom(cval);
-                
-                if(isKeyEnum || isValBase) {
-                    BasicDBObject map = new BasicDBObject();
-                    
-                    for(Map.Entry<Object, Object> e : m.entrySet()) {
-                        String key = isKeyEnum ? e.getKey().toString() : (String) e.getKey();
-                        Object val = isValBase ? convertBaseToDB((Base)e.getValue(), fullsave, mode, depth) : e.getValue();
-                        map.put(key, val);
-                    }
-    
-                    return map;
-                }
-            } else
-                return new BasicDBObject();
-        }
+        if (value instanceof Map)
+            return convertMapToDB((Map)value, fullsave, mode, depth);
         
         return value;
+    }
+    
+    private static BasicDBList convertCollectionToDB(Collection<?> collection, boolean fullsave, ExportMode mode, int depth) {
+        BasicDBList list = new BasicDBList();
+        
+        for (Object item : collection) {
+            list.add(convertFieldToDB(item, fullsave, mode, depth));
+        }
+
+        return list;
+    }
+    
+    private static BasicDBObject convertMapToDB(Map<?, ?> map, boolean fullsave, ExportMode mode, int depth) {
+        BasicDBObject dbObject = new BasicDBObject();
+
+        for (Map.Entry<?, ?> entry : map.entrySet()) {
+            Object key = entry.getKey();
+            Object value = entry.getValue();
+            String mKey = key instanceof Enum ? ((Enum) key).name() : key.toString();
+            dbObject.put(mKey, convertFieldToDB(value, fullsave, mode, depth));
+        }
+        
+        return dbObject;
     }
     
     private static DBObject convertBaseToDB(Base obj, boolean fullsave, ExportMode mode, int depth) {
