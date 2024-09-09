@@ -142,12 +142,8 @@ public abstract class Base implements Serializable {
         Field[] fields = clazz.getFields();
         
         for(Field field : fields) {
-            /* Must be final */
-            if(!Modifier.isFinal(field.getModifiers()))
-                continue;
-            
-            /* must not be static */
-            if(Modifier.isStatic(field.getModifiers()))
+            /* Check if field is key */
+            if(!isKeyField(field))
                 continue;
             
             String name = field.getName();
@@ -165,6 +161,11 @@ public abstract class Base implements Serializable {
         return data;
     }
     
+    /* Check if the field is final and non-static */
+    public static boolean isKeyField(Field field) {
+        return Modifier.isFinal(field.getModifiers()) && !Modifier.isStatic(field.getModifiers());
+    }
+        
     /* 
      * returns Map<FieldName, isUniqueIndex>
      */
@@ -891,6 +892,14 @@ public abstract class Base implements Serializable {
             BasicDBList list = new BasicDBList();
             for(Base b : (Base[])value)
                 list.add(convertBaseToDB((Base) b, fullsave, mode));
+            
+            return list;
+        }
+        
+        if (value instanceof Enum[]) {
+            BasicDBList list = new BasicDBList();
+            for(Enum e : (Enum[])value)
+                list.add(e.name());
             
             return list;
         }

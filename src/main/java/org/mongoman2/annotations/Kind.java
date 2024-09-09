@@ -23,7 +23,6 @@
  */
 package org.mongoman2.annotations;
 
-import org.mongoman.*;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 

@@ -70,7 +70,8 @@ public class TestClass extends Base {
     /* Enum */
     public static enum TestEnum { VALUE1, VALUE2, VALUE3 }
     public TestEnum enumValue;
-
+    public TestEnum[] enumArray;
+    
     /* Collections: List and Set */
     public List<Integer> intList;
     public Set<String> stringSet;
@@ -83,19 +84,27 @@ public class TestClass extends Base {
     public Map<String, ShallowClass> shallowObjectMap;
     public Map<String, NestedClass> nestedObjectMap;
 
-    /* Arrays of Base class */
-    public NestedClass[] nestedObjectArray;
-
-    /* Set of NestedClass objects */
-    public Set<NestedClass> nestedObjectSet;
+    /* Shallow object (fully saved with the parent) */
+    @FullSave
+    public ShallowClass fullySavedShallowObject;
 
     /* Nested object with @FullSave (fully saved with the parent) */
     @FullSave
     public NestedClass fullySavedNestedObject;
 
-    /* Shallow object (fully saved with the parent) */
+    /* Fully saved array of nested objects */
     @FullSave
-    public ShallowClass fullySavedShallowObject;
+    public NestedClass[] fullySavedNestedObjectArray;
+
+    /* Fully saved collection (Set) of nested objects */
+    @FullSave
+    public Set<NestedClass> fullySavedNestedObjectSet;
+
+    /* Arrays of Base class */
+    public NestedClass[] nestedObjectArray;
+
+    /* Set of NestedClass objects */
+    public Set<NestedClass> nestedObjectSet;
 
     /* Referenced object (loaded by reference) */
     @Reference

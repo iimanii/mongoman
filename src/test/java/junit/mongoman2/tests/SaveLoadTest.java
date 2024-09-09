@@ -28,6 +28,7 @@ import org.junit.*;
 
 import junit.mongoman2.Helper;
 import junit.mongoman2.db.*;
+import org.mongoman2.MongomanException;
 
 /**
  *
@@ -35,6 +36,26 @@ import junit.mongoman2.db.*;
  */
 public class SaveLoadTest extends BaseTest {
     private static final double DOUBLE_COMPARISON_DELTA = 0.0000001;
+
+    @Test
+    public void testBaseExists() {
+        // Step 1: Create and save a new TestClass object
+        TestClass testObj = new TestClass("exists_test_001");
+        testObj.intValue = 100;
+        testObj.stringValue = "Exists Test";
+        Assert.assertTrue(testObj.save());  // Save the object
+
+        // Step 2: Verify that the object exists in the datastore
+        Assert.assertTrue(testObj.exists());
+
+        // Step 3: Create a new TestClass object with a non-existent uniqueId
+        TestClass nonExistentObj = new TestClass("non_existent_001");
+
+        // Step 4: Verify that the non-existent object does not exist in the datastore
+        Assert.assertFalse(nonExistentObj.exists());
+
+        System.out.println("Test passed: Base.exists() works as expected.");
+    }
 
     @Test
     public void saveAndLoad_AllFieldsPopulated() {
@@ -71,6 +92,7 @@ public class SaveLoadTest extends BaseTest {
 
         /* Enum */
         testObj.enumValue = TestClass.TestEnum.VALUE1;
+        testObj.enumArray = new TestClass.TestEnum[]{TestClass.TestEnum.VALUE1, TestClass.TestEnum.VALUE2};
 
         /* Collections: List and Set */
         testObj.intList = Arrays.asList(10, 20, 30);
@@ -475,5 +497,30 @@ public class SaveLoadTest extends BaseTest {
         Assert.assertEquals(testObj.fullySavedNestedObject.nestedInt, loadedObj.fullySavedNestedObject.nestedInt); // FullSave comparison
         
         System.out.println("Test passed: Nested objects updated and verified successfully.");
+    }
+    
+    @Test
+    public void ensureShallowObjectsCannotBeSavedOrLoaded() {
+        // Attempt to create and save a shallow object independently
+        ShallowClass shallowObj = Helper.initShallowClass(1);
+
+        try {
+            shallowObj.save(); // This should throw an exception
+            Assert.fail("Expected MongomanException when saving shallow object independently.");
+        } catch (MongomanException e) {
+            // Test passes if the exception is caught
+            System.out.println("Test passed: Shallow objects cannot be saved independently.");
+        }
+
+        // Now, try to load the shallow object independently
+        ShallowClass shallowLoadObj = new ShallowClass(1); // Assuming shallow objects have a unique identifier
+
+        try {
+            shallowLoadObj.load(); // This should throw an exception
+            Assert.fail("Expected MongomanException when loading shallow object independently.");
+        } catch (MongomanException e) {
+            // Test passes if the exception is caught
+            System.out.println("Test passed: Shallow objects cannot be loaded independently.");
+        }
     }
 }

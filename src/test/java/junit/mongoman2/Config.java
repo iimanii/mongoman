@@ -26,6 +26,7 @@ package junit.mongoman2;
 import com.mongodb.MongoClient;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+
 import org.mongoman2.Datastore;
 
 /**

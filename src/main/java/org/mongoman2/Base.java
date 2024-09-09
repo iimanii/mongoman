@@ -48,6 +48,7 @@ import java.lang.reflect.Type;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.Set;
+import static org.mongoman.Base.isKeyField;
 
 /**
  *
@@ -142,12 +143,8 @@ public abstract class Base implements Serializable {
         Field[] fields = clazz.getFields();
         
         for(Field field : fields) {
-            /* Must be final */
-            if(!Modifier.isFinal(field.getModifiers()))
-                continue;
-            
-            /* must not be static */
-            if(Modifier.isStatic(field.getModifiers()))
+            /* Check if field is key */
+            if(!isKeyField(field))
                 continue;
             
             String name = field.getName();
@@ -163,6 +160,11 @@ public abstract class Base implements Serializable {
         }
         
         return data;
+    }
+    
+    /* Check if the field is final and non-static */
+    public static boolean isKeyField(Field field) {
+        return Modifier.isFinal(field.getModifiers()) && !Modifier.isStatic(field.getModifiers());
     }
     
     /* 
@@ -675,86 +677,6 @@ public abstract class Base implements Serializable {
         return getKey().hashCode();
     }
 
-        /* Helper functions for loading */
-    public static class TypeInfo {
-        final Class<?> clazz;
-        final Type genericType;
-        
-        public TypeInfo(Type type) {
-            if (type instanceof Class<?>) {
-                this.clazz = (Class<?>) type;
-                this.genericType = type;
-            } else if (type instanceof ParameterizedType) {
-                ParameterizedType parameterizedType = (ParameterizedType) type;
-                this.clazz = (Class<?>) parameterizedType.getRawType();
-                this.genericType = parameterizedType;
-            } else {
-                throw new IllegalArgumentException("Unsupported type: " + type);
-            }
-        }
-        
-        public TypeInfo(Field field) {
-            this.clazz = field.getType();
-            this.genericType = field.getGenericType();
-        }
-        
-        public TypeInfo getGenericArgument(int index) {
-            if (genericType instanceof ParameterizedType) {
-                Type[] args = ((ParameterizedType)genericType).getActualTypeArguments();
-                
-                if (index >= 0 && index < args.length)
-                    return new TypeInfo(args[index]);
-                else
-                    throw new IllegalArgumentException("Index " + index + " out of bounds for type arguments");
-            }
-            
-            throw new IllegalArgumentException("Type " + clazz.getName() + " does not have generic arguments");
-        }
-        
-        public Class<?> getComponentType() {
-            return clazz.getComponentType();
-        }
-        
-        public boolean isEnum() {
-            return clazz.isEnum();
-        }
-
-        public boolean isMap() {
-            return Map.class.isAssignableFrom(clazz);
-        }
-
-        public boolean isCollection() {
-            return Collection.class.isAssignableFrom(clazz);
-        }
-        
-        public boolean isList() {
-            return List.class.isAssignableFrom(clazz);
-        }
-        
-        public boolean isSet() {
-            return Set.class.isAssignableFrom(clazz);
-        }
-
-        public boolean isArray() {
-            return clazz.isArray();
-        }
-        
-        public boolean isBase() {
-            return Base.class.isAssignableFrom(clazz);
-        }
-        
-        public boolean isPrimitive() {
-            return clazz.isPrimitive();
-        }
-        
-        public Class<Enum> getEnumType() {
-            return (Class<Enum>) clazz;
-        }
-        
-        public Class<? extends Base> getBaseType() {
-            return (Class<? extends Base>) clazz;
-        }
-    }
     
     private Object convertDBToField(Object value, TypeInfo type) {
         if(value == null)
@@ -929,9 +851,8 @@ public abstract class Base implements Serializable {
         }
 
         /* Handle arrays (primitive and and non Base object arrays) */
-        if (value.getClass().isArray()) {
-            return convertArrayToDB(value);
-        }
+        if (value.getClass().isArray())
+            return convertArrayToDB(value, fullsave, mode);
         
         if (value instanceof Collection)
             return convertCollectionToDB((Collection)value, fullsave, mode);
@@ -942,11 +863,11 @@ public abstract class Base implements Serializable {
         return value;
     }
 
-    private static List<Object> convertArrayToDB(Object array) {
+    private static List<Object> convertArrayToDB(Object array, boolean fullsave, ExportMode mode) {
         int length = Array.getLength(array);
         List<Object> list = new ArrayList<>(length);
         for (int i = 0; i < length; i++) {
-            list.add(Array.get(array, i));
+            list.add(convertFieldToDB(Array.get(array, i), fullsave, mode));
         }
         return list;
     }

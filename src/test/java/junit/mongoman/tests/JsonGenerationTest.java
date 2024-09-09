@@ -31,7 +31,6 @@ import junit.mongoman.*;
 import junit.mongoman.db.*;
 import org.mongoman.*;
 
-
 /**
  *
  * @author ahmed

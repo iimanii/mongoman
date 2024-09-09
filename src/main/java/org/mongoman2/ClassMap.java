@@ -27,11 +27,12 @@ import org.mongoman2.annotations.Options;
 import org.mongoman2.annotations.Kind;
 import java.util.HashMap;
 
+
 /**
  *
  * @author ahmed
  */
-public class ClassMap {
+class ClassMap {
     protected static class classVariables {
         String kind;
         boolean shallow;

@@ -84,10 +84,6 @@ public class Cursor <T extends Base> {
         DBObject current = cursor.one​();
         return createInstance(clazz, current);
     }
-    
-    public void remove​() {
-        cursor.remove();
-    }
 
     /* Counts the number of objects matching the query this does take limit/skip into consideration */
     public int size​() {

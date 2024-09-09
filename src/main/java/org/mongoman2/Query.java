@@ -25,7 +25,6 @@ package org.mongoman2;
 
 import com.mongodb.client.MongoCursor;
 import org.bson.Document;
-import java.io.Serializable;
 import java.util.*;
 
 /**
@@ -34,82 +33,7 @@ import java.util.*;
  * @param <T>
  */
 public class Query<T extends Base> {
-
-    public static class Filter {
-        final FilterOperator op;
-        private String property;
-        private Object value;
-        private Filter[] filters;
-        private Document cached;
-        private String options;
-
-        public Filter(String property, FilterOperator op, Object value) {
-            this.op = op;
-            this.property = property;
-            this.value = value;
-
-            if(value instanceof Base)
-                this.value = ((Base)value).getKey().filterData;
-            else if(value instanceof Enum)
-                this.value = ((Enum<?>)value).name();
-            else if(value instanceof Collection) {
-                if(((Collection<?>)value).isEmpty())
-                    this.value = value;
-                else {
-                    Object first = ((Collection<?>)value).iterator().next();
-                    this.value = new ArrayList<>();
-                    if(first instanceof Enum) {
-                        for(Enum<?> e : (List<Enum<?>>)value)
-                            ((List<String>)this.value).add(e.name());
-                    } else
-                        this.value = value;
-                }
-            }
-        }
-
-        public Filter(FilterOperator op, Filter... filters) {
-            this.op = op;
-            this.filters = filters;
-        }
-
-        protected Document toDocument() {
-            if(cached != null)
-                return new Document(cached);
-
-            cached = new Document();
-
-            if(property != null) {
-                Document comp = new Document();
-                comp.put(op.code, value);
-
-                if(options != null)
-                    comp.put("$options", options);
-
-                cached.put(property, comp);
-            } else {
-                List<Document> arr = new ArrayList<>();
-
-                for(Filter f : filters)
-                    arr.add(f.toDocument());
-
-                cached.put(op.code, arr);
-            }
-
-            return new Document(cached);
-        }
-
-        public Filter options(String value) {
-            this.options = value;
-            cached = null;
-            return this;
-        }
-
-        @Override
-        public String toString() {
-            return toDocument().toJson();
-        }
-    }
-
+    
     public static enum SortDirection {
         ASC(1), DESC(-1);
 
@@ -125,7 +49,7 @@ public class Query<T extends Base> {
         GREATER_THAN("$gt"), GREATER_THAN_OR_EQUAL("$gte"),
         LESS_THAN("$lt"), LESS_THAN_OR_EQUAL("$lte"),
         IN("$in"), NOT_IN("$nin"),
-        AND("$and"), OR("$or"), NOT("$not"), NOR("$nor"),
+        AND("$and"), OR("$or"), NOR("$nor"),
         REGEX("$regex");
 
         final String code;
@@ -176,6 +100,17 @@ public class Query<T extends Base> {
         
         return this;
     }
+    
+    /* Method to create a new Filter and validate fields immediately */
+    public Filter createFilter(String property, FilterOperator operator, Object value) {
+        Filter f = new Filter(property, operator, value);
+        f.validateFieldPath(clazz);
+        return f;
+    }     
+    
+    public Filter createFilter(Query.FilterOperator op, Filter... filters) {
+        return new Filter(op, filters);
+    }     
 
     public Query setSkip(int skip) {
         this.skip = skip;
@@ -206,6 +141,9 @@ public class Query<T extends Base> {
     }
 
     public Query addProjection(String field) {
+        if (!ignore.isEmpty())
+            throw new MongomanException("Cannot add projection field when ignore fields are set.");
+
         projection.add(field);
 
         computedProjection = null;
@@ -214,6 +152,9 @@ public class Query<T extends Base> {
     }
 
     public Query ignoreField(String field) {
+        if (!projection.isEmpty())
+            throw new MongomanException("Cannot add ignore field when projection fields are set.");
+
         ignore.add(field);
         
         computedProjection = null;
@@ -305,6 +246,16 @@ public class Query<T extends Base> {
         return size(Datastore.fetchDefaultService());
     }
     public long size(Datastore datastore) {
-        return datastore.getCollection(getKind()).countDocuments(getFilter().append("$skip", skip).append("$limit", limit));
+        long totalCount = count(datastore);
+        
+        if(skip >= totalCount)
+            return 0;
+        
+        totalCount -= skip;
+        
+        if(limit < 0)
+            return totalCount;
+        
+        return Math.min(limit, totalCount);
     }
 }

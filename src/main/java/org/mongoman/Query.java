@@ -25,12 +25,14 @@ package org.mongoman;
 
 import com.mongodb.BasicDBList;
 import com.mongodb.BasicDBObject;
+import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import org.mongoman.Base.TypeInfo;
 
 /**
  *
@@ -50,30 +52,62 @@ public class Query <T extends Base> {
         public Filter(String property, FilterOperator op, Object value) {
             this.op = op;
             this.property = property;
-            this.value = value;
             
-            if(value instanceof Base)
-               this.value = ((Base)value).getKey().filterData;
-            else if(value instanceof Enum)
-                this.value = ((Enum)value).name();
-            else if(value instanceof Collection) {
-                if(((Collection) value).isEmpty())
-                    this.value = value;
-                else {
-                    Object first = ((Collection) value).iterator().next();
-                    this.value = new ArrayList<>();
-                    if(first instanceof Enum) {
-                        for (Enum e : (List<Enum>)value) 
-                            ((List<String>)this.value).add(e.name());
-                    } else
-                        this.value = value;
-                }
+            if(value instanceof Base) {
+                this.value = ((Base) value).getKey().filterData;
+            } else if(value instanceof Enum) {
+                this.value = ((Enum) value).name();  // Single enum to string
+            } else if (value instanceof Collection) {
+                this.value = handleCollection((Collection) value);  // Handle collections (including enums)
+            } else if (value.getClass().isArray()) {
+                this.value = handleArray(value);  // Handle arrays (including enums)
+            } else {
+                this.value = value;  // Primitive types or other objects
             }
         }
         
         public Filter(FilterOperator op, Filter... filters) {
             this.op = op;
             this.filters = filters;
+        }
+        
+        public Filter options(String value) {
+            this.options = value;
+            cached = null;
+            return this;
+        }
+        
+        @Override
+        public String toString() {
+            return toDBObj().toJson();
+        }
+        
+        private Object handleCollection(Collection<?> collection) {
+            if (collection.isEmpty())
+                return collection;
+
+            Object first = collection.iterator().next();
+            if (first instanceof Enum) {
+                List<String> enumNames = new ArrayList<>();
+                for (Enum e : (Collection<Enum>) collection) {
+                    enumNames.add(e.name());  // Convert each enum to string
+                }
+                return enumNames;
+            }
+
+            return collection;  // Non-enum collections can be returned as-is
+        }
+        
+        private Object handleArray(Object array) {
+            if (array instanceof Enum[]) {
+                List<String> enumNames = new ArrayList<>();
+                for (Enum e : (Enum[]) array) {
+                    enumNames.add(e.name());  // Convert each enum to string
+                }
+                return enumNames;
+            }
+
+            return array;  // Non-enum arrays can be returned as-is
         }
         
         protected BasicDBObject toDBObj() {
@@ -97,21 +131,44 @@ public class Query <T extends Base> {
                     arr.add(f.toDBObj());
 
                 cached.put(op.code, arr);
-            }
-            
+            }            
             
             return cached;
         }
         
-        public Filter options(String value) {
-            this.options = value;
-            cached = null;
-            return this;
-        }
-        
-        @Override
-        public String toString() {
-            return toDBObj().toJson();
+        protected void validateFieldPath(Class<?> currentClass) {
+            String[] parts = property.split("\\.");  // Split the field path by dot for nested fields
+            boolean isFullSaved = true;  // Top-level class (TestClass) fields are fully saved by default
+
+            /* Loop through each part of the nested path */
+            for (String part : parts) {
+                /* Get the field in the current class, this will throw NoSuchFieldException if the field doesn't exist */
+                Field currentField;
+                try {
+                    currentField = currentClass.getField(part);
+                } catch (NoSuchFieldException | SecurityException ex) {
+                    throw new MongomanException(ex);
+                }
+
+                /* If the class is not fully saved and the field is not a key field, throw an exception */
+                if (!isFullSaved && !Base.isKeyField(currentField))
+                    throw new MongomanException("Field '" + part + "' is invalid because the object is not fully saved.");
+
+                /* Determine the type of the current field to move to the next class level */
+                TypeInfo typeInfo = new TypeInfo(currentField);
+                if (typeInfo.isCollection()) {
+                    currentClass = typeInfo.getGenericArgument(0).clazz;  // Get the element type for collections (List/Set)
+                } else if (typeInfo.isMap()) {
+                    currentClass = typeInfo.getGenericArgument(1).clazz;  // Get the value type for Map<K, V>
+                } else if (typeInfo.isArray()) {
+                    currentClass = typeInfo.getComponentType();  // Get the component type for arrays
+                } else {
+                    currentClass = currentField.getType();  // Move to the next level for non-collection, non-map fields
+                }
+
+                /* Update the fully saved status for the next level */
+                isFullSaved = currentField.isAnnotationPresent(FullSave.class);  // Check if this field is marked with @FullSave
+            }
         }
     }
     
@@ -130,7 +187,7 @@ public class Query <T extends Base> {
         GREATER_THAN("$gt"), GREATER_THAN_OR_EQUAL("$gte"),
         LESS_THAN("$lt"), LESS_THAN_OR_EQUAL("$lte"),
         IN("$in"), NOT_IN("$nin"),
-        AND("$and"), OR("$or"), NOT("$not"), NOR("$nor"),
+        AND("$and"), OR("$or"), NOR("$nor"),
         REGEX("$regex");
         
         final String code;
@@ -139,6 +196,13 @@ public class Query <T extends Base> {
             this.code = code;
         }
     }
+
+    /* Method to create a new Filter and validate fields immediately */
+    public Filter createFilter(String property, FilterOperator operator, Object value) {
+        Filter f = new Filter(property, operator, value);
+        f.validateFieldPath(clazz);
+        return f;
+    }    
     
     public final Class<? extends Base> clazz;
     private final String kind;
@@ -211,6 +275,9 @@ public class Query <T extends Base> {
     }
     
     public Query addProjection(String field) {
+        if (!ignore.isEmpty())
+            throw new MongomanException("Cannot add projection field when ignore fields are set.");
+
         projection.add(field);
 
         computedProjection = null;
@@ -219,6 +286,9 @@ public class Query <T extends Base> {
     }
     
     public Query ignoreField(String field) {
+        if (!projection.isEmpty())
+            throw new MongomanException("Cannot add ignore field when projection fields are set.");
+
         ignore.add(field);
         
         computedProjection = null;

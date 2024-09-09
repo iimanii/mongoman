@@ -28,7 +28,6 @@ import java.io.Serializable;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
@@ -130,13 +129,11 @@ public class Key implements Serializable {
     public String toString() {
         return data.toJson();
     }
-    
 
     @Override
     public int hashCode() {
         return hashCode;
     }
-   
 
     @Override
     public boolean equals(Object object) {

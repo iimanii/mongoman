@@ -38,21 +38,21 @@ public class DeleteTest extends BaseTest {
     @Test
     public void deleteObjectAndVerifyNonExistence() {
         // Create and save a new TestClass object
-        TestClass testObj = new TestClass("unique_to_delete");
+        TestClass testObj = new TestClass("delete_test_001");
         testObj.intValue = 123;
         testObj.stringValue = "Test string to delete";
         
         Assert.assertTrue(testObj.save());
 
         // Verify object exists in the database
-        TestClass loadedObj = new TestClass("unique_to_delete");
+        TestClass loadedObj = new TestClass("delete_test_001");
         Assert.assertTrue(loadedObj.load());
 
         // Now, delete the object
         Assert.assertTrue(loadedObj.delete());
 
         // Attempt to load the object again, should return false as it no longer exists
-        TestClass deletedObj = new TestClass("unique_to_delete");
+        TestClass deletedObj = new TestClass("delete_test_001");
         Assert.assertFalse(deletedObj.load());
 
         System.out.println("Test passed: Object deleted and verified it no longer exists in the database.");
@@ -61,17 +61,17 @@ public class DeleteTest extends BaseTest {
     @Test
     public void deleteObjectWithReferenceAndVerifyCleanup() {
         // Step 1: Create and save a referenced object (NestedClass)
-        NestedClass referencedObj = new NestedClass("ReferencedNested");
+        NestedClass referencedObj = new NestedClass("test_ref_delete_ref_001");
         referencedObj.nestedInt = 500;
         Assert.assertTrue(referencedObj.save());
 
         // Step 2: Create a TestClass that references the referencedObj
-        TestClass testObj = new TestClass("unique_002");
+        TestClass testObj = new TestClass("test_ref_delete_002");
         testObj.referencedObject = referencedObj;  // Reference the object
         Assert.assertTrue(testObj.save());
 
         // Step 3: Load and verify both objects
-        TestClass loadedObj = new TestClass("unique_002");
+        TestClass loadedObj = new TestClass("test_ref_delete_002");
         Assert.assertTrue(loadedObj.load());
         Assert.assertEquals(testObj.referencedObject, loadedObj.referencedObject);
 
@@ -79,11 +79,11 @@ public class DeleteTest extends BaseTest {
         Assert.assertTrue(loadedObj.delete());
 
         // Step 5: Verify the referenced object still exists
-        NestedClass loadedReferencedObj = new NestedClass("ReferencedNested");
+        NestedClass loadedReferencedObj = new NestedClass("test_ref_delete_ref_001");
         Assert.assertTrue(loadedReferencedObj.load());  // Should still exist
 
         // Step 6: Optionally check that no reference remains to the deleted object
-        TestClass deletedObj = new TestClass("unique_002");
+        TestClass deletedObj = new TestClass("test_ref_delete_002");
         Assert.assertFalse(deletedObj.load());  // The deleted object should no longer exist
         
         System.out.println("Test passed: Object with reference deleted, referenced object still exists.");
