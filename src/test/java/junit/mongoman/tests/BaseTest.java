@@ -21,23 +21,30 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-package org.mongoman;
+package junit.mongoman.tests;
+
+import org.junit.BeforeClass;
+import org.junit.AfterClass;
+
+import junit.mongoman.Config;
+import org.mongoman.Datastore;
 
 /**
  *
  * @author ahmed
  */
-enum ExportMode {
-    DB(false, false),
-    JSON(true, false),
-    DB_IGNORE_NULL(false, true),
-    JSON_IGNORE_NULL(true, true);
+public class BaseTest {
+    protected static Datastore datastore;
+
+    @BeforeClass
+    public static void initDatabase() {
+        datastore = Config.initDatastore("test_db");
+        System.out.println("Database initialized for all tests.");
+    }
     
-    final boolean json;
-    final boolean ignore_null;
-    
-    private ExportMode(boolean json, boolean ignore_null) {
-        this.json = json;
-        this.ignore_null = ignore_null;
+    @AfterClass
+    public static void cleanDatabase() {
+        datastore.getMongoClient().getDatabase("test_db").drop();
+        System.out.println("Dropping the database.");
     }
 }

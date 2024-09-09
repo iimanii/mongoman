@@ -1,7 +1,7 @@
 /*
  * The MIT License
  *
- * Copyright 2024 ahmed.
+ * Copyright 2020 Ahmed Tarek.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,23 +21,25 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-package org.mongoman;
+package org.mongoman2.annotations;
+
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
 
 /**
  *
  * @author ahmed
  */
-enum ExportMode {
-    DB(false, false),
-    JSON(true, false),
-    DB_IGNORE_NULL(false, true),
-    JSON_IGNORE_NULL(true, true);
+@Retention(RetentionPolicy.RUNTIME)
+public @interface Options {
+    /**
+     * does store null fields into database when saving
+     */
+    public boolean ignoreNull();
     
-    final boolean json;
-    final boolean ignore_null;
-    
-    private ExportMode(boolean json, boolean ignore_null) {
-        this.json = json;
-        this.ignore_null = ignore_null;
-    }
+    /**
+     * enable this to remove extra/obsolete properties found in database object 
+     *  and are not defined in the class 
+     */
+    public boolean ignoreUnknownProperties();
 }

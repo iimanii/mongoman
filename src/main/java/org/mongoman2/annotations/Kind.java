@@ -1,7 +1,7 @@
 /*
  * The MIT License
  *
- * Copyright 2024 ahmed.
+ * Copyright 2020 ahmed.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,23 +21,18 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-package org.mongoman;
+package org.mongoman2.annotations;
+
+import org.mongoman.*;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
 
 /**
  *
  * @author ahmed
  */
-enum ExportMode {
-    DB(false, false),
-    JSON(true, false),
-    DB_IGNORE_NULL(false, true),
-    JSON_IGNORE_NULL(true, true);
-    
-    final boolean json;
-    final boolean ignore_null;
-    
-    private ExportMode(boolean json, boolean ignore_null) {
-        this.json = json;
-        this.ignore_null = ignore_null;
-    }
+@Retention(RetentionPolicy.RUNTIME)
+public @interface Kind {
+    String value();
+    boolean shallow() default false;
 }

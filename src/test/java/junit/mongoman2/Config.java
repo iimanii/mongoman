@@ -21,23 +21,29 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-package org.mongoman;
+package junit.mongoman2;
+
+import com.mongodb.MongoClient;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import org.mongoman2.Datastore;
 
 /**
  *
  * @author ahmed
  */
-enum ExportMode {
-    DB(false, false),
-    JSON(true, false),
-    DB_IGNORE_NULL(false, true),
-    JSON_IGNORE_NULL(true, true);
+public class Config {
     
-    final boolean json;
-    final boolean ignore_null;
-    
-    private ExportMode(boolean json, boolean ignore_null) {
-        this.json = json;
-        this.ignore_null = ignore_null;
+    public static Datastore initDatastore(String dbname) {
+//        ((Logger) Loggers.getLogger("org.mongodb.driver")).setLevel(Level.ERROR);
+        Logger.getLogger("org.mongodb.driver").setLevel(Level.SEVERE);
+
+        MongoClient mongoClient = new MongoClient("localhost", 27017);
+        Datastore store = new Datastore(mongoClient, dbname);
+        Datastore.setDefaultService(store);
+
+        System.out.println("Starting test");
+        
+        return store;
     }
 }

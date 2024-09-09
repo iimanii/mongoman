@@ -21,12 +21,22 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-package org.mongoman;
+package org.mongoman2;
 
-import com.mongodb.BasicDBList;
-import com.mongodb.BasicDBObject;
-import com.mongodb.DBObject;
+import org.mongoman2.annotations.FullSave;
+import org.mongoman2.annotations.Index;
+import org.mongoman2.annotations.Unique;
+import org.mongoman2.annotations.Reference;
 import com.mongodb.WriteConcern;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import org.bson.Document;
+import org.bson.types.ObjectId;
+import org.bson.json.JsonMode;
+import org.bson.json.JsonWriterSettings;
 import java.io.Serializable;
 import java.lang.reflect.Array;
 import java.lang.reflect.Constructor;
@@ -35,19 +45,9 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Modifier;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Date;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
 import java.util.Set;
-import org.bson.Document;
-import org.bson.json.JsonMode;
-import org.bson.json.JsonWriterSettings;
-import org.bson.types.ObjectId;
 
 /**
  *
@@ -78,7 +78,7 @@ public abstract class Base implements Serializable {
     private ObjectId _id;
 
     /* underlying db entity */
-    private DBObject loaded;
+    private Document loaded;
 
     public Base() {
         ClassMap.classVariables v = ClassMap.getVariables(this.getClass());
@@ -109,11 +109,11 @@ public abstract class Base implements Serializable {
     }
     
     /* creates an instance given a subclass and its data */
-    protected static <T extends Base> T createInstance(Class<? extends Base> clazz, DBObject data) {
+    protected static <T extends Base> T createInstance(Class<? extends Base> clazz, Document data) {
         try {
             Constructor<?> constructor = clazz.getConstructor();
             T item = (T)constructor.newInstance();
-            item.fromDBObject(data);
+            item.fromDocument(data);
             return item;
         } catch(NoSuchMethodException ex) {
             throw new MongomanException(clazz.getName() + " All subclasses of Base Class must implement a constructor that takes no arguments");
@@ -135,8 +135,8 @@ public abstract class Base implements Serializable {
         }
     }
     
-    protected static BasicDBObject getKeyFields(Class<? extends Base> clazz) {
-        BasicDBObject data = new BasicDBObject();
+    protected static Document getKeyFields(Class<? extends Base> clazz) {
+        Document data = new Document();
         
         /* Get all public fields of the class */
         Field[] fields = clazz.getFields();
@@ -154,7 +154,7 @@ public abstract class Base implements Serializable {
             Class<?> field_class = field.getType();
             
             if(Base.class.isAssignableFrom(field_class)) {
-                BasicDBObject inner = getKeyFields((Class<? extends Base>) field_class);
+                Document inner = getKeyFields((Class<? extends Base>) field_class);
                 for(String n : inner.keySet()) {
                     data.append(name + "." + n, 1);
                 }
@@ -189,13 +189,13 @@ public abstract class Base implements Serializable {
     }
     
     /* loads data into the object */
-    protected void fromDBObject(DBObject data) {
+    protected void fromDocument(Document data) {
         /* Get all public fields of the class */
         Field[] fields = this.getClass().getFields();
         for(Field field : fields) {
             String name = field.getName();
             
-            if(data.containsField(name)) {
+            if(data.containsKey(name)) {
                 if(Modifier.isFinal(field.getModifiers()))
                     field.setAccessible(true);
 
@@ -209,13 +209,13 @@ public abstract class Base implements Serializable {
             }
         }
         
-        _id = (ObjectId) data.get("_id");
+        _id = data.getObjectId("_id");
         loaded = data;
     }
     
-    /* creates dbobject from item */
-    private BasicDBObject toDBObject(ExportMode mode) {
-        BasicDBObject data = new BasicDBObject();
+    /* creates Document from item */
+    protected Document toDocument(ExportMode mode) {
+        Document data = new Document();
         
         if(!mode.json && _id != null)
             data.put("_id", _id);
@@ -243,7 +243,7 @@ public abstract class Base implements Serializable {
         }
         
         return data;
-    }        
+    }
     
     private static final JsonWriterSettings DEFAULT_JSONWRITER_SETTINGS = 
         JsonWriterSettings.builder()
@@ -256,7 +256,7 @@ public abstract class Base implements Serializable {
     public String toJSON(boolean ignore_null) {
         ExportMode mode = ignore_null ? ExportMode.JSON_IGNORE_NULL : ExportMode.JSON;
         
-        BasicDBObject data = toDBObject(mode);
+        Document data = toDocument(mode);
         
         JsonWriterSettings settings = DEFAULT_JSONWRITER_SETTINGS;
         
@@ -266,7 +266,7 @@ public abstract class Base implements Serializable {
     public static String toJSON(Map map, boolean fullsave, boolean ignore_null) {
         ExportMode mode = ignore_null ? ExportMode.JSON_IGNORE_NULL : ExportMode.JSON;
         
-        BasicDBObject data = (BasicDBObject) convertFieldToDB(map, fullsave, mode);
+        Document data = (Document) convertFieldToDB(map, fullsave, mode);
         
         JsonWriterSettings settings = DEFAULT_JSONWRITER_SETTINGS;
         
@@ -276,18 +276,18 @@ public abstract class Base implements Serializable {
     public static String toJSON(Collection collection, String name, boolean fullsave, boolean ignore_null) {
         ExportMode mode = ignore_null ? ExportMode.JSON_IGNORE_NULL : ExportMode.JSON;
         
-        BasicDBList list = (BasicDBList)convertFieldToDB(collection, fullsave, mode);
+        List<Document> list = (List<Document>) convertFieldToDB(collection, fullsave, mode);
         
-        BasicDBObject data = new BasicDBObject();
+        Document data = new Document();
         data.put(name, list);
         
         JsonWriterSettings settings = DEFAULT_JSONWRITER_SETTINGS;
         
         return data.toJson(settings);
     }
-    
+
     /**
-     * Uses key to checks if object exists in db
+     * Uses key to check if object exists in db
      * @return true if item is stored in db
      */
     public boolean exists() {
@@ -295,7 +295,7 @@ public abstract class Base implements Serializable {
     }
         
     /**
-     * Uses key to checks if object exists in db
+     * Uses key to check if object exists in db
      * @param store
      * @return true if item is stored in db
      */
@@ -303,14 +303,14 @@ public abstract class Base implements Serializable {
         return store.exists(getKey());
     }
     
-    /**
-     * loads item default datastore 
+        /**
+     * loads item from default datastore 
      * @return true on success
      */
     public boolean load() {
         return load(Datastore.fetchDefaultService());
     }
-    
+
     /**
      * loads item from default datastore 
      * @param loadNested if true will also load all nested Base fields
@@ -319,62 +319,61 @@ public abstract class Base implements Serializable {
     public boolean load(boolean loadNested) {
         return load(Datastore.fetchDefaultService(), loadNested);
     }
-    
+
     /**
-     * loads item datastore 
-     * @param store
+     * loads item from specified datastore 
+     * @param store the datastore to load the object from
      * @return true on success
      */
     public boolean load(Datastore store) {
         return load(store, false);
     }
-    
+
     /**
-     * loads item datastore 
-     * @param store
-     * @param loadNested if true will also load all nested Base fields
+     * loads item from specified datastore 
+     * @param store the datastore to load the object from
+     * @param loadNested if true, all nested Base fields will also get loaded
      * @return true on success
      */
     public boolean load(Datastore store, boolean loadNested) {
-//        System.out.println(this.getKey() + " " + loadNested);
         return load(store, loadNested, new HashMap<>());
     }
-    
-    private boolean load(Datastore store, boolean loadNested, Map<Key, DBObject> loaded) {
+
+    private boolean load(Datastore store, boolean loadNested, Map<Key, Document> loaded) {
         if(shallow)
-           throw new MongomanException("Shallow objects cannot be loaded: " + this.getClass().getName());
+            throw new MongomanException("Shallow objects cannot be loaded: " + this.getClass().getName());
         
         Key k = getKey();
         
         if(!loaded.containsKey(k))
             loaded.put(getKey(), store.get(k));
 
-        DBObject data = loaded.get(k);
+        Document data = loaded.get(k);
         
         if(data == null)
             return false;
         
-        fromDBObject(data);
+        fromDocument(data);
         
         return loadNested ? loadNested(store, loaded) : true;
     }
-    
-    protected boolean loadNested(Datastore store, Map<Key, DBObject> loaded) {
+
+    protected boolean loadNested(Datastore store, Map<Key, Document> loaded) {
         boolean result = true;
-        
+
         /* Get all public fields of the class */
         Field[] fields = this.getClass().getFields();
         for(Field field : fields) {
             try {
                 Object value = field.get(this);
-                
+
                 if(value == null)
                     continue;
-                
+
                 /* dont load by reference object */
                 if(field.isAnnotationPresent(Reference.class))
                     continue;
-            
+
                 if(value instanceof Base) {
                     if(!((Base)value).shallow)
                         result &= ((Base) value).load(store, true, loaded);
@@ -394,7 +393,7 @@ public abstract class Base implements Serializable {
                     Map m = (Map) value;
 
                     if(m.size() > 0 && m.keySet().iterator().next() instanceof String &&
-                        Base.class.isAssignableFrom(m.values().iterator().next().getClass())) {
+                       Base.class.isAssignableFrom(m.values().iterator().next().getClass())) {
 
                         for(Base b : ((Map<String, Base>)m).values())
                             if(!b.shallow)
@@ -405,7 +404,7 @@ public abstract class Base implements Serializable {
                 throw new MongomanException(ex);
             }
         }
-        
+
         return result;
     }
     
@@ -419,26 +418,26 @@ public abstract class Base implements Serializable {
 
     /**
      * saves the entity to default datastore 
-     * @param saveNested if true all Base fields will also get saved in their collections
+     * @param saveNested if true, all Base fields will also get saved in their collections
      * @return true if the item is new
      */
     public boolean save(boolean saveNested) {
         return save(Datastore.fetchDefaultService(), saveNested);
     }
-    
+
     /**
-     * saves the entity to default datastore 
-     * @param store
+     * saves the entity to specified datastore 
+     * @param store the datastore to save the object to
      * @return true if the item is new
      */
     public boolean save(Datastore store) {
         return save(store, false);
     }
-    
+
     /**
-     * saves the entity to datastore 
-     * @param store
-     * @param saveNested if true all Base fields will also get saved in their collections
+     * saves the entity to specified datastore 
+     * @param store the datastore to save the object to
+     * @param saveNested if true, all Base fields will also get saved in their collections
      * @return true if the item is new
      */
     public boolean save(Datastore store, boolean saveNested) {
@@ -447,31 +446,31 @@ public abstract class Base implements Serializable {
 
         
     /**
-     * saves the entity to default datastore using specified write concern
-     * @param concern
+     * saves the entity to specified datastore using specified write concern
+     * @param concern the write concern to use
      * @return true if the item is new 
      */
     public boolean save(WriteConcern concern) {
         return save(Datastore.fetchDefaultService(), false, concern);
     }
-    
+
     /**
      * saves the entity to specified datastore using specified write concern
-     * @param store
-     * @param concern
+     * @param store the datastore to save the object to
+     * @param concern the write concern to use
      * @return true if the item is new 
      */
     public boolean save(Datastore store, WriteConcern concern) {
         return save(store, false, concern);
     }
-    
+
     protected boolean save(Datastore store, boolean saveNested, WriteConcern concern) {
         if(shallow)
            throw new MongomanException("Shallow objects cannot be saved: " + this.getClass().getName());
         
-        DBObject e = toDBObject(this.dbExportMode);
+        Document doc = toDocument(this.dbExportMode);
         
-        boolean isNew = store.save(kind, e, concern);
+        boolean isNew = store.save(kind, getKey(), doc, concern);
         
         if(saveNested)
             saveNested(store);
@@ -481,26 +480,38 @@ public abstract class Base implements Serializable {
         
         return isNew;
     }
-    
+    /**
+     * Static method to save a list of Base objects
+     * @param list the list of Base objects to save
+     */
     public static void saveAll(List<? extends Base> list) {
         saveAll(Datastore.fetchDefaultService(), list);
     }
-    
+
+    /**
+     * Static method to save a list of Base objects using a specified datastore
+     * @param store the datastore to save the objects to
+     * @param list the list of Base objects to save
+     */
     public static void saveAll(Datastore store, List<? extends Base> list) {
-        Map<String, List<DBObject>> map = new HashMap<>();
+        Map<String, List<Document>> map = new HashMap<>();
         
         for(Base b : list) {
             String kind = b.kind;
             if(!map.containsKey(kind))
                 map.put(kind, new ArrayList<>());
             
-            map.get(kind).add(b.toDBObject(b.dbExportMode));
+            map.get(kind).add(b.toDocument(b.dbExportMode));
         }
         
-        for(Map.Entry<String, List<DBObject>> e : map.entrySet())
+        for(Map.Entry<String, List<Document>> e : map.entrySet())
             store.saveMany(e.getKey(), e.getValue());
     }
     
+    /**
+     * saves nested objects to the datastore
+     * @param store the datastore to save the nested objects to
+     */
     protected void saveNested(Datastore store) {        
         /* Get all public fields of the class */
         Field[] fields = this.getClass().getFields();
@@ -542,25 +553,42 @@ public abstract class Base implements Serializable {
             }
         }
     }
-    
-    /* deletes entity from datastore and memcache */
+
+    /**
+     * deletes the entity from default datastore and memcache
+     * @return true if the item was deleted
+     */
     public boolean delete() {
         return delete(Datastore.fetchDefaultService());
     }
     
+    /**
+     * deletes the entity and optionally its nested objects from default datastore
+     * @param nested whether to delete nested objects as well
+     * @return true if the item was deleted
+     */
     public boolean delete(boolean nested) {
         return delete(Datastore.fetchDefaultService(), nested);
     }
     
-    /* deletes entity from datastore */
+    /**
+     * deletes the entity from the specified datastore
+     * @param store the datastore to delete the object from
+     * @return true if the item was deleted
+     */
     public boolean delete(Datastore store) {
         return delete(store, false);
     }
 
-    /* deletes entity from datastore and memcache */
+    /**
+     * deletes the entity and optionally its nested objects from the specified datastore
+     * @param store the datastore to delete the object from
+     * @param nested whether to delete nested objects as well
+     * @return true if the item was deleted
+     */
     public boolean delete(Datastore store, boolean nested) {
         if(shallow)
-           throw new MongomanException("Shallow objects cannot be deleted: " + this.getClass().getName());
+            throw new MongomanException("Shallow objects cannot be deleted: " + this.getClass().getName());
         
         if(nested)
             deleteNested(store);
@@ -570,7 +598,11 @@ public abstract class Base implements Serializable {
         
         return store.delete(getKey());
     }
-    
+
+    /**
+     * deletes nested objects from the specified datastore
+     * @param store the datastore to delete the nested objects from
+     */
     protected void deleteNested(Datastore store) {        
         /* Get all public fields of the class */
         Field[] fields = this.getClass().getFields();
@@ -586,8 +618,8 @@ public abstract class Base implements Serializable {
                         ((Base) value).delete(store, true);
                 } else if (value instanceof Base[]) {
                     for(Base b : (Base[]) value)
-                    if(!b.shallow)
-                        b.delete(store, true);
+                        if(!b.shallow)
+                            b.delete(store, true);
                 } else if (value instanceof Collection) {
                     Collection l = (Collection) value;
 
@@ -612,15 +644,16 @@ public abstract class Base implements Serializable {
             }
         }
     }
-    
+
     /**
      * TODO: mark item as loaded on loading, make sure key only loads do not count
-     * @return 
+     * Checks if the object is loaded
+     * @return true if the object is loaded
      */
     public boolean isLoaded() {
         return _id != null;
     }
-    
+
     @Override
     public boolean equals(Object object) {
         if(object == this)
@@ -641,8 +674,8 @@ public abstract class Base implements Serializable {
     public int hashCode() {
         return getKey().hashCode();
     }
-    
-    /* Helper functions for loading */
+
+        /* Helper functions for loading */
     public static class TypeInfo {
         final Class<?> clazz;
         final Type genericType;
@@ -731,21 +764,21 @@ public abstract class Base implements Serializable {
             return Enum.valueOf(type.getEnumType(), value.toString());
         
         if(type.isBase())
-           return createInstance(type.getBaseType(), (DBObject) value);
+           return createInstance(type.getBaseType(), (Document) value);
         
         if(type.isCollection())
-            return convertDBToCollectionField((BasicDBList)value, type);
+            return convertDBToCollectionField((List<Object>)value, type);
             
-        if(type.isArray() && value instanceof BasicDBList)
-            return convertDBToArrayField((BasicDBList)value, type);
+        if(type.isArray() && value instanceof List)
+            return convertDBToArrayField((List<Object>)value, type);
         
         if(type.isMap())
-            return convertDBToMapField((BasicDBObject)value, type);
+            return convertDBToMapField((Document)value, type);
         
         return type.isPrimitive() ? convertPrimitiveType(value, type.clazz) : value;
     }
     
-    private Map convertDBToMapField(BasicDBObject map, TypeInfo type) {
+    private Map convertDBToMapField(Document map, TypeInfo type) {
         TypeInfo tkey = type.getGenericArgument(0);
         TypeInfo tval = type.getGenericArgument(1);
         
@@ -761,7 +794,7 @@ public abstract class Base implements Serializable {
         return result;
     }
     
-    private Collection convertDBToCollectionField(BasicDBList list, TypeInfo type) {        
+    private Collection convertDBToCollectionField(List<Object> list, TypeInfo type) {        
         Collection<Object> result;
         
         if (type.isList())
@@ -778,7 +811,7 @@ public abstract class Base implements Serializable {
         return result;
     }
     
-    private Object convertDBToArrayField(BasicDBList list, TypeInfo type) {
+    private Object convertDBToArrayField(List<Object> list, TypeInfo type) {
         Class<?> componentType = type.getComponentType();
         Object array = Array.newInstance(componentType, list.size());
         
@@ -875,7 +908,7 @@ public abstract class Base implements Serializable {
         
         return value;
     }
-    
+
     /* Helper functions for saving */
     private static Object convertFieldToDB(Object value, boolean fullsave, ExportMode mode) {        
         if(value == null)
@@ -888,11 +921,16 @@ public abstract class Base implements Serializable {
             return convertBaseToDB((Base) value, fullsave, mode);
         
         if (value instanceof Base[]) {
-            BasicDBList list = new BasicDBList();
+            List<Document> list = new ArrayList<>();
             for(Base b : (Base[])value)
                 list.add(convertBaseToDB((Base) b, fullsave, mode));
             
             return list;
+        }
+
+        /* Handle arrays (primitive and and non Base object arrays) */
+        if (value.getClass().isArray()) {
+            return convertArrayToDB(value);
         }
         
         if (value instanceof Collection)
@@ -903,9 +941,18 @@ public abstract class Base implements Serializable {
         
         return value;
     }
+
+    private static List<Object> convertArrayToDB(Object array) {
+        int length = Array.getLength(array);
+        List<Object> list = new ArrayList<>(length);
+        for (int i = 0; i < length; i++) {
+            list.add(Array.get(array, i));
+        }
+        return list;
+    }
     
-    private static BasicDBList convertCollectionToDB(Collection<?> collection, boolean fullsave, ExportMode mode) {
-        BasicDBList list = new BasicDBList();
+    private static List<Object> convertCollectionToDB(Collection<?> collection, boolean fullsave, ExportMode mode) {
+        List<Object> list = new ArrayList<>();
         
         for (Object item : collection) {
             list.add(convertFieldToDB(item, fullsave, mode));
@@ -914,8 +961,8 @@ public abstract class Base implements Serializable {
         return list;
     }
     
-    private static BasicDBObject convertMapToDB(Map<?, ?> map, boolean fullsave, ExportMode mode) {
-        BasicDBObject dbObject = new BasicDBObject();
+    private static Document convertMapToDB(Map<?, ?> map, boolean fullsave, ExportMode mode) {
+        Document dbObject = new Document();
 
         for (Map.Entry<?, ?> entry : map.entrySet()) {
             Object key = entry.getKey();
@@ -927,10 +974,10 @@ public abstract class Base implements Serializable {
         return dbObject;
     }
     
-    private static DBObject convertBaseToDB(Base obj, boolean fullsave, ExportMode mode) {
+    private static Document convertBaseToDB(Base obj, boolean fullsave, ExportMode mode) {
         if(obj == null)
             return null;
         
-        return fullsave ? obj.toDBObject(mode) : obj.getKey().data;
+        return fullsave ? obj.toDocument(mode) : obj.getKey().data;
     }
 }
