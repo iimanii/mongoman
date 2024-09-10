@@ -43,30 +43,163 @@ import org.mongoman2.Watch;
 public class WatchTest extends BaseTest {
 
     @Test
-    public void testWatchInsertOperation() {
-        // Step 1: Create a Watch object for TestClass
-        Watch<TestClass> watch = new Watch<>(TestClass.class);
-        
-        // Step 2: Insert a new object into the collection
-        TestClass testObj = new TestClass("watch_test_001");
-        testObj.intValue = 123;
-        testObj.save();  // Simulate an insert operation
-        
-        // Step 3: Verify that the watch detects the insert operation
-        Assert.assertTrue(watch.hasNext());  // The watch should detect the insert
-        TestClass result = watch.next();     // Fetch the inserted object
-        
-        // Step 4: Verify that the returned object matches the inserted one
-        Assert.assertEquals(testObj.uniqueId, result.uniqueId);
-        Assert.assertEquals(testObj.intValue, result.intValue);
-        
-        System.out.println("Watch Test Passed: Detected insert operation.");
+    public void testWatchInsertOperations() {
+        Watch<TestClass> watch = new Watch<>(TestClass.class, Watch.WatchMode.INSERT);
+
+        // Insert multiple objects
+        TestClass testObj1 = new TestClass("watch_insert_001");
+        testObj1.intValue = 100;
+        testObj1.save();
+
+        TestClass testObj2 = new TestClass("watch_insert_002");
+        testObj2.intValue = 200;
+        testObj2.save();
+
+        // Use hasNext() and next()
+        Assert.assertTrue(watch.hasNext());  // Should return true for the first insert
+        TestClass result1 = watch.next();
+        Assert.assertEquals("watch_insert_001", result1.uniqueId);  // Verify first object
+
+        Assert.assertTrue(watch.hasNext());  // Should return true for the second insert
+        TestClass result2 = watch.next();
+        Assert.assertEquals("watch_insert_002", result2.uniqueId);  // Verify second object
+
+        Assert.assertNull(watch.tryNext());  // No more objects should be available
+    }
+
+    @Test
+    public void testWatchUpdateReplaceOperations() {
+        Watch<TestClass> watch = new Watch<>(TestClass.class, Watch.WatchMode.UPDATE_REPLACE);
+
+        // Insert an object (should be ignored in this mode)
+        TestClass testObj = new TestClass("watch_update_replace_001");
+        testObj.intValue = 100;
+        testObj.save();
+
+        // Ensure the insert is ignored
+        Assert.assertNull(watch.tryNext());  // Should return null because INSERT is not watched in this mode
+
+        // Update operation
+        testObj.intValue = 200;
+        testObj.save();  // Simulate update
+
+        // Replace operation
+        testObj.intValue = 300;
+        testObj.replace();  // Use replace instead of save for replace operation
+
+        // Check if the update is captured
+        TestClass result1 = watch.tryNext();
+        Assert.assertNotNull(result1);  // Ensure we got the update event
+        Assert.assertEquals(200, result1.intValue);  // Verify update operation
+
+        // Check if the replace is captured
+        TestClass result2 = watch.tryNext();
+        Assert.assertNotNull(result2);  // Ensure we got the replace event
+        Assert.assertEquals(300, result2.intValue);  // Verify replace operation
+
+        // No more operations should be available
+        Assert.assertNull(watch.tryNext());  // Ensure no more events are available
+    }
+
+    @Test
+    public void testWatchInsertUpdateReplaceOperations() {
+        Watch<TestClass> watch = new Watch<>(TestClass.class, Watch.WatchMode.INSERT_UPDATE_REPLACE);
+
+        // Step 1: Insert an object
+        TestClass testObj1 = new TestClass("watch_insert_update_replace_001");
+        testObj1.intValue = 100;
+        testObj1.save();  // This insert should trigger the watch
+
+        // Step 2: Insert another object
+        TestClass testObj2 = new TestClass("watch_insert_update_replace_002");
+        testObj2.intValue = 200;
+        testObj2.save();  // This insert should also trigger the watch
+
+        // Step 3: Update the first object
+        testObj1.intValue = 150;
+        testObj1.save();  // Simulate update, should trigger the watch
+
+        // Step 4: Replace the second object
+        TestClass replacementObj = new TestClass("watch_insert_update_replace_002");
+        replacementObj.intValue = 250;
+        replacementObj.replace();  // Simulate replace, should trigger the watch
+
+        // Use hasNext() and next() to process the changes
+        Assert.assertTrue(watch.hasNext());  // Should return true for the first insert
+        TestClass result1 = watch.next();
+        Assert.assertEquals(testObj1.uniqueId, result1.uniqueId);  // Verify first insert
+        Assert.assertEquals(100, result1.intValue);
+
+        Assert.assertTrue(watch.hasNext());  // Should return true for the second insert
+        TestClass result2 = watch.next();
+        Assert.assertEquals(testObj2.uniqueId, result2.uniqueId);  // Verify second insert
+        Assert.assertEquals(200, result2.intValue);
+
+        Assert.assertTrue(watch.hasNext());  // Should return true for the update
+        TestClass result3 = watch.next();
+        Assert.assertEquals(testObj1.uniqueId, result3.uniqueId);  // Verify update
+        Assert.assertEquals(150, result3.intValue);  // Updated value should be 150
+
+        Assert.assertTrue(watch.hasNext());  // Should return true for the replace
+        TestClass result4 = watch.next();
+        Assert.assertEquals(replacementObj.uniqueId, result4.uniqueId);  // Verify replace
+        Assert.assertEquals(250, result4.intValue);  // Replaced value should be 250
+
+        // No more operations should be available
+        Assert.assertNull(watch.tryNext());
+    }
+
+    @Test
+    public void testWatchDeleteOperationsAreIgnored() {
+        // Step 1: Initialize a Watch for TestClass that listens for INSERT, UPDATE, and REPLACE operations
+        Watch<TestClass> watch = new Watch<>(TestClass.class, Watch.WatchMode.INSERT_UPDATE_REPLACE);
+
+        // Step 2: Insert an object (should be detected)
+        TestClass testObj1 = new TestClass("watch_delete_ignore_001");
+        testObj1.intValue = 100;
+        testObj1.save();  // Simulate an insert operation
+
+        // Step 3: Update the object (should be detected)
+        testObj1.intValue = 200;
+        testObj1.save();  // Simulate an update operation
+
+        // Step 4: Delete the object (should be ignored)
+        testObj1.delete();  // Simulate a delete operation (should not be detected)
+
+        // Step 5: Insert another object (should be detected)
+        TestClass testObj2 = new TestClass("watch_delete_ignore_002");
+        testObj2.intValue = 300;
+        testObj2.save();  // Simulate an insert operation
+
+        // Step 6: Use hasNext() and next() to verify that only INSERT and UPDATE/REPLACE operations are detected
+
+        // Check for the first insert
+        Assert.assertTrue(watch.hasNext());
+        TestClass result1 = watch.next();
+        Assert.assertEquals("watch_delete_ignore_001", result1.uniqueId);
+        Assert.assertEquals(100, result1.intValue);
+
+        // Check for the update operation
+        Assert.assertTrue(watch.hasNext());
+        TestClass result2 = watch.next();
+        Assert.assertEquals("watch_delete_ignore_001", result2.uniqueId);
+        Assert.assertEquals(200, result2.intValue);
+
+        // Ensure that the delete operation was ignored
+        // Check for the second insert
+        Assert.assertTrue(watch.hasNext());
+        TestClass result3 = watch.next();
+        Assert.assertEquals("watch_delete_ignore_002", result3.uniqueId);
+        Assert.assertEquals(300, result3.intValue);
+
+        // No further changes should be available
+        Assert.assertNull(watch.tryNext());
     }
 
     @Test
     public void testWatchInvalidate() {
         // Step 1: Create a Watch object for TestClass
-        Watch<TestClass> watch = new Watch<>(TestClass.class);
+        Watch<TestClass> watch = new Watch<>(TestClass.class, Watch.WatchMode.INSERT_UPDATE_REPLACE);
         
         // Step 2: Drop the collection, triggering an invalidate event
         Datastore.getDefaultService().getCollection(Base.getKind(TestClass.class)).drop();
@@ -78,9 +211,9 @@ public class WatchTest extends BaseTest {
     }
     
     @Test
-    public void testNextWithoutDataThrowsException() {
+    public void testNextWithoutData() {
         // Step 1: Create a Watch object for TestClass
-        Watch<TestClass> watch = new Watch<>(TestClass.class);
+        Watch<TestClass> watch = new Watch<>(TestClass.class, Watch.WatchMode.INSERT_UPDATE_REPLACE);
 
         try {
             // Step 2: Call next() without having any data to retrieve
@@ -92,9 +225,9 @@ public class WatchTest extends BaseTest {
     }
     
     @Test
-    public void testWatchUpdateOperationsOrder() {
+    public void testWatchOperationsOrder() {
         // Step 1: Create a Watch object for TestClass
-        Watch<TestClass> watch = new Watch<>(TestClass.class);
+        Watch<TestClass> watch = new Watch<>(TestClass.class, Watch.WatchMode.INSERT_UPDATE_REPLACE);
 
         // Step 2: Insert multiple objects
         TestClass testObj1 = new TestClass("watch_update_001");
@@ -136,52 +269,122 @@ public class WatchTest extends BaseTest {
         // Step 6: Assert the collected order
         Assert.assertEquals(expectedOrder, actualOrder);
     }
-
     
     @Test
-    public void testWatchWithMixedOperations() {
-        // Step 1: Initialize a Watch for TestClass
-        Watch<TestClass> watch = new Watch<>(TestClass.class);
+    public void testWatchClose() {
+        // Step 1: Initialize a Watch object
+        Watch<TestClass> watch = new Watch<>(TestClass.class, Watch.WatchMode.INSERT_UPDATE_REPLACE);
 
-        // Step 2: Simulate valid INSERT operations
+        // Step 2: Simulate an INSERT operation
         TestClass testObj1 = new TestClass("watch_test_001");
         testObj1.intValue = 100;
         testObj1.save();
 
-        TestClass testObj2 = new TestClass("watch_test_002");
-        testObj2.intValue = 200;
-        testObj2.save();
-
-        // Step 3: Simulate a non-data DELETE operation (which should be skipped)
-        testObj1.delete();
-
-        // Step 4: Simulate an UPDATE operation
-        testObj2.intValue = 300;
-        testObj2.save();
-
-        // First hasNext() should return true, as the first object was inserted (testObj1)
-        // Expect the first object (testObj1) with uniqueId "watch_test_001"
+        // Step 3: Verify watch works before closing
         Assert.assertTrue(watch.hasNext());
         TestClass result = watch.next();
         Assert.assertEquals("watch_test_001", result.uniqueId);
 
-        // Second hasNext() should return true, as the second object was inserted (testObj2)
-        // Expect the second object (testObj2) with uniqueId "watch_test_002" and updated intValue 300
-        Assert.assertTrue(watch.hasNext());
-        result = watch.next();
-        Assert.assertEquals("watch_test_002", result.uniqueId);
-        
-        // Third hasNext() should return true for the update operation on testObj2
-        // Expect the same object (testObj2) but with updated intValue of 300
-        Assert.assertTrue(watch.hasNext());
-        result = watch.next();
-        Assert.assertEquals("watch_test_002", result.uniqueId);
-        Assert.assertEquals(300, result.intValue);
-
+        // Step 4: Close the watch and ensure no further operations are captured
         watch.close();
         
-        // After processing all changes (including the delete), hasNext() should return false
-        Assert.assertFalse(watch.hasNext());
+        Assert.assertNull(watch.tryNext());
+    }
+    
+    @Test
+    public void testWatchInsertModeWithUnmatchingOperations() {
+        // Step 1: Initialize a Watch with INSERT mode
+        Watch<TestClass> watch = new Watch<>(TestClass.class, Watch.WatchMode.INSERT);
+
+        // Step 2: Simulate INSERT operations (these should be captured)
+        TestClass testObj1 = new TestClass("watch_insert_001");
+        testObj1.intValue = 100;
+        testObj1.save();
+
+        TestClass testObj2 = new TestClass("watch_insert_002");
+        testObj2.intValue = 200;
+        testObj2.save();
+
+        // Step 3: Simulate UPDATE and REPLACE operations (these should not be captured)
+        testObj1.intValue = 150;
+        testObj1.save();  // Update
+
+        testObj2.intValue = 250;
+        testObj2.save();  // Update
+
+        TestClass testObj3 = new TestClass("watch_insert_003");
+        testObj3.intValue = 300;
+        testObj3.save();  // Insert operation
+
+        testObj3.stringValue = "Replaced";
+        testObj3.save();  // Replace operation
+
+        // Step 4: Simulate DELETE operation (this should not be captured)
+        testObj1.delete();
+
+        // Step 5: Verify only INSERT operations are captured
+        Assert.assertTrue(watch.hasNext());
+        TestClass result = watch.next();
+        Assert.assertEquals("watch_insert_001", result.uniqueId);  // Insert 1
+
+        Assert.assertTrue(watch.hasNext());
+        result = watch.next();
+        Assert.assertEquals("watch_insert_002", result.uniqueId);  // Insert 2
+
+        Assert.assertTrue(watch.hasNext());
+        result = watch.next();
+        Assert.assertEquals("watch_insert_003", result.uniqueId);  // Insert 3
+
+        // No more changes should be captured
+        Assert.assertNull(watch.tryNext());
+    }
+
+    @Test
+    public void testWatchUpdateReplaceModeWithUnmatchingOperations() {
+        // Step 1: Initialize a Watch with UPDATE_REPLACE mode
+        Watch<TestClass> watch = new Watch<>(TestClass.class, Watch.WatchMode.UPDATE_REPLACE);
+
+        // Step 2: Simulate INSERT operations (these should not be captured)
+        TestClass testObj1 = new TestClass("watch_update_001");
+        testObj1.intValue = 100;
+        testObj1.save();
+
+        TestClass testObj2 = new TestClass("watch_update_002");
+        testObj2.intValue = 200;
+        testObj2.save();
+
+        // Step 3: Simulate UPDATE and REPLACE operations (these should be captured)
+        testObj1.intValue = 150;
+        testObj1.save();  // Update
+
+        testObj2.intValue = 250;
+        testObj2.save();  // Update
+
+        TestClass testObj3 = new TestClass("watch_update_003");
+        testObj3.intValue = 300;
+        testObj3.save();  // Insert (not captured)
+
+        testObj3.stringValue = "Replaced";
+        testObj3.save();  // Replace operation (captured)
+
+        // Step 4: Simulate DELETE operation (this should not be captured)
+        testObj1.delete();
+
+        // Step 5: Verify only UPDATE and REPLACE operations are captured
+        Assert.assertTrue(watch.hasNext());
+        TestClass result = watch.next();
+        Assert.assertEquals("watch_update_001", result.uniqueId);  // Update 1
+
+        Assert.assertTrue(watch.hasNext());
+        result = watch.next();
+        Assert.assertEquals("watch_update_002", result.uniqueId);  // Update 2
+
+        Assert.assertTrue(watch.hasNext());
+        result = watch.next();
+        Assert.assertEquals("watch_update_003", result.uniqueId);  // Replace 1
+
+        // No more changes should be captured
+        Assert.assertNull(watch.tryNext());
     }
 }
 

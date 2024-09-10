@@ -26,6 +26,10 @@ package org.mongoman2;
 import com.mongodb.client.ChangeStreamIterable;
 import com.mongodb.client.MongoChangeStreamCursor;
 import com.mongodb.client.model.changestream.ChangeStreamDocument;
+import com.mongodb.client.model.changestream.OperationType;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Set;
 import org.bson.BsonDocument;
 import org.bson.Document;
 
@@ -37,6 +41,7 @@ import org.bson.Document;
 public class Watch<T extends Base> {
     public final Class<? extends Base> clazz;
     private final String kind;
+    private final WatchMode mode;
     
     private ChangeStreamIterable<Document> stream;
     private MongoChangeStreamCursor<ChangeStreamDocument<Document>> cursor;
@@ -44,14 +49,32 @@ public class Watch<T extends Base> {
     private Datastore datastore;
     private ChangeStreamDocument<Document> lastChange;
     private boolean invalidate = false;
-    
-    public Watch(Class<? extends Base> clazz) {
-        this(clazz, Datastore.getDefaultService());
+
+    public static enum WatchMode {
+        INSERT(OperationType.INSERT),
+        UPDATE_REPLACE(OperationType.UPDATE, OperationType.REPLACE),
+        INSERT_UPDATE_REPLACE(OperationType.INSERT, OperationType.UPDATE, OperationType.REPLACE);
+        
+        private final Set<OperationType> allowed;
+
+        private WatchMode(OperationType... allowed) {
+            this.allowed = new HashSet<>(Arrays.asList(allowed));
+        }
+        
+        protected boolean isAllowed(OperationType type) {
+            return this.allowed.contains(type);
+        }
     }
     
-    public Watch(Class<? extends Base> clazz, Datastore datastore) {
+    public Watch(Class<? extends Base> clazz, WatchMode mode) {
+        this(clazz, mode, Datastore.getDefaultService());
+    }
+    
+    public Watch(Class<? extends Base> clazz, WatchMode mode, Datastore datastore) {
         this.clazz = clazz;
         this.kind = ClassMap.getKind(clazz);
+        this.mode = mode;
+        
         this.datastore = datastore;
         this.stream = datastore.getCollection(kind).watch();
         this.cursor = this.stream.cursor();
@@ -67,73 +90,39 @@ public class Watch<T extends Base> {
         while(cursor.hasNext()) {
             lastChange = cursor.next();
             
-//            System.out.println(lastChange.toString());
-            
-            switch(lastChange.getOperationType()) {
-                case INVALIDATE:
-                    invalidate = true;
-                    cursor.close();
-                    return false;
-                case DELETE:
-                case DROP:
-                case DROP_DATABASE:
-                case RENAME:
-                case OTHER:
-                    System.out.println(lastChange.toString());
-                    continue;
-                case INSERT:
-                case REPLACE:
-                case UPDATE:
-                    return true;
+            OperationType type = lastChange.getOperationType();
+
+            if(mode.isAllowed(type)) {
+                return true;
+            } else if(type == OperationType.INVALIDATE) {
+                invalidate = true;
+                cursor.close();
+                return false;
             }
         }
         
         return false;
     }
     
-    private boolean tryNext() {
-        if(invalidate)
-            return false;
+    public synchronized T tryNext() {
+        lastChange = peekNext();
         
-        if(lastChange != null)
-            return true;
+        T item = buildItem();
         
-        while((lastChange = cursor.tryNext()) != null) {
-//            System.out.println(lastChange.toString());
-            
-            switch(lastChange.getOperationType()) {
-                case INVALIDATE:
-                    invalidate = true;
-                    cursor.close();
-                    return false;
-                case DELETE:
-                case DROP:
-                case DROP_DATABASE:
-                case RENAME:
-                case OTHER:
-                    continue;
-                case INSERT:
-                case REPLACE:
-                case UPDATE:
-                    return true;
-            }
+        if(item != null) {
+            lastChange = null;
+            return item;
         }
         
-        return false;
+        return null;
     }
 
     public synchronized T next() {
-        if(lastChange != null || tryNext()) {
-            Document lastdocument = lastChange.getFullDocument();
-            
-            if(lastdocument == null) {
-                BsonDocument key = lastChange.getDocumentKey();
-                
-                if(key != null)
-                    lastdocument = datastore.get(kind, key.getObjectId("_id").getValue());
-            }
-            
-            T item = Base.createInstance(clazz, lastdocument);
+        lastChange = peekNext();
+        
+        T item = buildItem();
+        
+        if(item != null) {
             lastChange = null;
             return item;
         }
@@ -146,5 +135,46 @@ public class Watch<T extends Base> {
             cursor.close();
             invalidate = true;
         }
+    }
+    
+    @SuppressWarnings("null")
+    private ChangeStreamDocument<Document> peekNext() {
+        if(invalidate)
+            return null;
+        
+        if(lastChange != null)
+            return lastChange;
+        
+        ChangeStreamDocument<Document> change;
+        
+        while((change = cursor.tryNext()) != null) {
+            OperationType type = change.getOperationType();
+            
+            if(mode.isAllowed(type)) {
+                return change;
+            } else if(type == OperationType.INVALIDATE) {
+                invalidate = true;
+                cursor.close();
+                return null;
+            }
+        }
+        
+        return null;
+    }
+    
+    private T buildItem() {
+        if(lastChange == null)
+            return null;
+        
+        Document lastdocument = lastChange.getFullDocument();
+            
+        if(lastdocument == null) {
+            BsonDocument key = lastChange.getDocumentKey();
+
+            if(key != null)
+                lastdocument = datastore.get(kind, key.getObjectId("_id").getValue());
+        }
+
+        return Base.createInstance(clazz, lastdocument);
     }
 }

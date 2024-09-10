@@ -31,6 +31,7 @@ import com.mongodb.client.result.UpdateResult;
 import org.bson.Document;
 import org.bson.types.ObjectId;
 import java.util.*;
+import org.bson.BsonValue;
 
 /**
  *
@@ -84,13 +85,49 @@ public class Datastore {
         return (doc != null) ? doc.getObjectId("_id") : null;
     }
 
-    protected boolean save(String kind, Key key, Document data, WriteConcern concern) {
+    protected ObjectId save(String kind, Key key, Document data, WriteConcern concern) {
         MongoCollection<Document> collection = getCollection(kind).withWriteConcern(concern != null ? concern : WriteConcern.ACKNOWLEDGED);
         
-        UpdateOptions options = new UpdateOptions().upsert(true);
-        UpdateResult result = collection.updateOne(key.filterData, new Document("$set", data), options);
+        // If there is no _id field in the data, generate a new ObjectId and set it
+        if (!data.containsKey("_id")) {
+            ObjectId newId = new ObjectId();
+            data.put("_id", newId);
+            collection.insertOne(data);
+            
+            return newId;
+        }
+
+        UpdateResult result = collection.replaceOne(key.filterData, data);
         
-        return result.getMatchedCount() == 0;
+        /* this should never happend .. if it did then bug */
+        if(result.getUpsertedId() != null)
+            throw new MongomanException("invalid update");
+        
+        return null;
+    }
+    
+    protected boolean update(String kind, Key key, Document data, WriteConcern concern) {
+        MongoCollection<Document> collection = getCollection(kind).withWriteConcern(concern != null ? concern : WriteConcern.ACKNOWLEDGED);
+
+        UpdateResult result = collection.updateOne(key.filterData, new Document("$set", data));
+        
+        /* this should never happend .. if it did then bug */
+        if(result.getUpsertedId() != null)
+            throw new MongomanException("invalid update");
+        
+        return result.getModifiedCount() == 1;
+    }
+    
+    protected boolean replace(String kind, Key key, Document data, WriteConcern concern) {
+        MongoCollection<Document> collection = getCollection(kind).withWriteConcern(concern != null ? concern : WriteConcern.ACKNOWLEDGED);
+        
+        UpdateResult result = collection.replaceOne(key.filterData, data);
+        
+        /* this should never happend .. if it did then bug */
+        if(result.getUpsertedId() != null)
+            throw new MongomanException("invalid update");
+        
+        return result.getModifiedCount() == 1;
     }
 
     protected void saveMany(String kind, List<Document> data) {

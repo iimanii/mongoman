@@ -472,16 +472,30 @@ public abstract class Base implements Serializable {
         
         Document doc = toDocument(this.dbExportMode);
         
-        boolean isNew = store.save(kind, getKey(), doc, concern);
+        ObjectId id = store.save(kind, getKey(), doc, concern);
         
         if(saveNested)
             saveNested(store);
         
-        if(isNew)
-           _id = store.getObjectId(getKey());
+        if(id != null)
+           _id = id;
         
-        return isNew;
+        return id != null;
     }
+    
+    public boolean replace() {
+        return replace(Datastore.fetchDefaultService(), null);
+    }
+    
+    protected boolean replace(Datastore store, WriteConcern concern) {
+        if(shallow)
+           throw new MongomanException("Shallow objects cannot be saved: " + this.getClass().getName());
+        
+        Document doc = toDocument(this.dbExportMode);
+        
+        return store.replace(kind, getKey(), doc, concern);
+    }
+    
     /**
      * Static method to save a list of Base objects
      * @param list the list of Base objects to save

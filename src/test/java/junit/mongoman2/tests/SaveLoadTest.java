@@ -23,6 +23,7 @@
  */
 package junit.mongoman2.tests;
 
+import com.mongodb.MongoWriteException;
 import java.util.*;
 import org.junit.*;
 
@@ -500,7 +501,7 @@ public class SaveLoadTest extends BaseTest {
     }
     
     @Test
-    public void ensureShallowObjectsCannotBeSavedOrLoaded() {
+    public void saveAndLoad_ensureShallowObjectsCannotBeSavedOrLoaded() {
         // Attempt to create and save a shallow object independently
         ShallowClass shallowObj = Helper.initShallowClass(1);
 
@@ -523,4 +524,81 @@ public class SaveLoadTest extends BaseTest {
             System.out.println("Test passed: Shallow objects cannot be loaded independently.");
         }
     }
+    
+    @Test
+    public void saveAndLoad_replace() {
+        // Step 1: Create and save a TestClass object
+        TestClass originalObj = new TestClass("replace_test_001");
+        originalObj.intValue = 100;
+        originalObj.stringValue = "Original String";
+        originalObj.save();  // Save the original object
+
+        // Step 2: Verify that the object is saved correctly
+        TestClass loadedObj = new TestClass("replace_test_001");
+        Assert.assertTrue(loadedObj.load());  // Load the object from the database
+        Assert.assertEquals(100, loadedObj.intValue);
+        Assert.assertEquals("Original String", loadedObj.stringValue);
+
+        // Step 3: Create a new TestClass object with the same unique ID but different fields
+        TestClass replacementObj = new TestClass("replace_test_001");
+        replacementObj.intValue = 200;
+        replacementObj.stringValue = "Replaced String";
+
+        // Step 4: Replace the original object with the new one .. should return false there is no new object created
+        Assert.assertTrue(replacementObj.replace());
+
+        // Step 5: Verify that the original object has been replaced
+        loadedObj = new TestClass("replace_test_001");
+        Assert.assertTrue(loadedObj.load());
+        Assert.assertEquals(200, loadedObj.intValue);  // New value
+        Assert.assertEquals("Replaced String", loadedObj.stringValue);  // New value
+
+        // Step 6: Verify that the uniqueId (key) has not changed
+        Assert.assertEquals("replace_test_001", loadedObj.uniqueId);  // Key remains the same
+    }
+
+    @Test
+    public void testSaveVsReplaceWithSameKey() {
+        // Step 1: Create and save an original TestClass object
+        TestClass originalObj = new TestClass("save_replace_test_001");
+        originalObj.intValue = 100;
+        originalObj.stringValue = "Original String";
+        originalObj.save();  // Save the original object
+
+        // Step 2: Verify that the object is saved correctly
+        TestClass loadedObj = new TestClass("save_replace_test_001");
+        Assert.assertTrue(loadedObj.load());  // Load the object from the database
+        Assert.assertEquals(100, loadedObj.intValue);
+        Assert.assertEquals("Original String", loadedObj.stringValue);
+
+        // Step 3: Create a new object with the same key but different field values
+        TestClass newObj = new TestClass("save_replace_test_001");
+        newObj.intValue = 200;
+        newObj.stringValue = "New String";
+
+        // Step 4: Attempt to save the new object using save(), expect an exception due to duplicate key
+        try {
+            newObj.save();
+            Assert.fail("Expected an exception due to saving an object with a duplicate key.");
+        } catch (MongoWriteException e) {
+            // Exception caught, test passes
+            System.out.println("Caught expected exception: " + e.getMessage());
+        }
+
+        // Step 5: Load the object again and verify it was not changed
+        loadedObj = new TestClass("save_replace_test_001");
+        Assert.assertTrue(loadedObj.load());
+        Assert.assertEquals(100, loadedObj.intValue);  // Original value should remain
+        Assert.assertEquals("Original String", loadedObj.stringValue);  // Original value should remain
+
+        // Step 6: Use replace() to overwrite the original object  .. should return false there is no new object created
+        Assert.assertTrue(newObj.replace());
+
+        // Step 7: Load the object again and verify it has been replaced
+        loadedObj = new TestClass("save_replace_test_001");
+        Assert.assertTrue(loadedObj.load());
+        Assert.assertEquals(200, loadedObj.intValue);  // New value should be present
+        Assert.assertEquals("New String", loadedObj.stringValue);  // New value should be present
+    }
+
 }
