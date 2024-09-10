@@ -61,7 +61,10 @@ public class Datastore {
     protected Document get(Key key) {
         return getCollection(key.kind).find(key.filterData).limit(1).first();
     }
-
+    protected Document get(String kind, ObjectId id) {
+        return getCollection(kind).find(new Document("_id", id)).limit(1).first();
+    }
+    
     protected boolean exists(Key key) {
         return getCollection(key.kind)
                 .find(key.filterData)
@@ -84,8 +87,8 @@ public class Datastore {
     protected boolean save(String kind, Key key, Document data, WriteConcern concern) {
         MongoCollection<Document> collection = getCollection(kind).withWriteConcern(concern != null ? concern : WriteConcern.ACKNOWLEDGED);
         
-        ReplaceOptions options = new ReplaceOptions().upsert(true);
-        UpdateResult result = collection.replaceOne(key.filterData, data, options);
+        UpdateOptions options = new UpdateOptions().upsert(true);
+        UpdateResult result = collection.updateOne(key.filterData, new Document("$set", data), options);
         
         return result.getMatchedCount() == 0;
     }

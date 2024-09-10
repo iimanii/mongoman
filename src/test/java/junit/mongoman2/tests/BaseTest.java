@@ -27,6 +27,9 @@ import org.junit.BeforeClass;
 import org.junit.AfterClass;
 
 import junit.mongoman2.Config;
+import junit.mongoman2.db.NestedClass;
+import junit.mongoman2.db.TestClass;
+import org.bson.Document;
 import org.mongoman2.Datastore;
 
 /**
@@ -40,11 +43,15 @@ public class BaseTest {
     public static void initDatabase() {
         datastore = Config.initDatastore("test_db");
         System.out.println("Database initialized for all tests.");
+        datastore.getCollection(TestClass.getKind(TestClass.class)).deleteMany(new Document());
+        datastore.getCollection(NestedClass.getKind(NestedClass.class)).deleteMany(new Document());        
     }
     
     @AfterClass
     public static void cleanDatabase() {
-        datastore.getMongoClient().getDatabase("test_db").drop();
-        System.out.println("Dropping the database.");
+//        datastore.getMongoClient().getDatabase("test_db").drop();
+//        System.out.println("Dropping the database.");
+        datastore.getCollection(TestClass.getKind(TestClass.class)).deleteMany(new Document());
+        datastore.getCollection(NestedClass.getKind(NestedClass.class)).deleteMany(new Document());   
     }
 }
