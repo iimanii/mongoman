@@ -15,9 +15,9 @@ Must also include mongo-java-driver in your project
 - Each class will represent a unique collection in the database
 - Collection name must be passed via @Kind annotation with the class
 - Only **non-static public** fields get stored
-- **non-static final public** fields are used as keys to load and store the objects and marked as unique index (they cannot repeat)
+- **non-static final public** fields are used as keys to load and store the objects and are indexed to prevent duplicates.
 - Use load() and store() to load and save the object
-- Your class must implement a 0-argument constructor
+- Your class must implement a 0-argument constructor to allow Mongoman to instantiate objects when loading data from the database.
 
 ##### Example
 
@@ -56,25 +56,34 @@ c.save();
 #### Supported types
 Not all fields are automatically serialized into mongodb, the following are the ones guaranteed to work
 
-- All primitive types (int, byte, float, ...)
-- All primitive type arrays (int[], byte[], float[], ....)
-- String
-- java.util.List
-- java.util.Set
-- java.util.Map
-- java.util.Date
-- Any class that extends mongoman.Base
-- An array of any class that extends mongoman.Base
-- java.util.Map<String, ? extends mongoman.Base>
-- java.util.Map<Enum, ? extends mongoman.Base>
+- **Primitive types**: `int`, `byte`, `float`, `double`, etc.
+- **String**
+- **Enums**: Java `enum` types are fully supported, and enum values are stored as strings
+- **Dates**: java.util.Date
+- **Nested `Base` classes**: Any class that extends `mongoman.Base`
 
-Note that using when using java.util.Set, 2 Base objects are considered equal if their keys are equal (final fields)
-if you wish to change this behavior you must implement "equals" and "hashCode" for your class
+These types can also be used within:
+
+- **Primitive arrays**: Arrays of primitives such as `int[]`, `byte[]`, `float[]`, etc.
+- **Arrays**: Arrays of any type mentioned above.
+- **Collections**:
+  - `java.util.List`: Lists of any type mentioned above.
+  - `java.util.Set`: Sets of any type mentioned above.
+  - `java.util.Map`: Maps of any supported type, keys can be Strings or Enums
+
+- **Nested Collections**:
+  - **List of Lists**: Nested lists (e.g., `List<List<T>>`).
+  - **Map of Maps**: Nested maps (e.g., `Map<String, Map<String, T>>`).
+
+#### Important Notes:
+- When using Collections, `Base` objects are compared by their keys (i.e., final fields). To change this behavior, you must implement custom `equals()` and `hashCode()` methods in your class.
 
 #### Keys
-Mongoman uses keys to load and save objects, keys are composed of the mongo _id field plus any **final** field defined in the object
+Mongoman uses the combination of all **final** fields in an object as the key
 
-Usage of keys is implicit within mongoman and is just mentioned here for clarity
+Keys are used to load and save objects, and must be unique across the collection
+
+Uniqueness is enforced on the set of key fields, not on individual fields.
 
 #### Working with nested objects
 Mongoman allows the usage of nested Base classes
@@ -88,7 +97,7 @@ public Class Car extends Base {
 ```
 
 
-Nested objects will be stored as "keys" in the parent object, if you want the full object to be saved with parent (this might be useful for querying) add **FullSave** annotation to the field
+Only the keys [final fields] of the nested objects will be stored in the parent object, if you want all fields to be stored add **FullSave** annotation
 
 ``` 
 @Kind("car")
@@ -104,9 +113,27 @@ public Class Car extends Base {
 }
 ```
 
-When loading and saving the parent object, Mongoman can automatically load / save any nested objects in their respective collections, while only storing "keys" in the original object
+#### Shallow Objects
+It is possible to enforce that an object will never get saved in its own collection.
+This can be common with nested objects that are fully saved in parent
 
-To do so use **.load(true)** and **.save(true)**
+```
+@Kind(value = "door", shallow = true)
+public Class Door extends Base {
+    ....
+    
+    public Door(...) {
+        ....
+    }
+}
+```
+
+```
+    Door d = new Door(...)
+    ....
+    d.save();           // this will always fail because the object is defined as shallow
+```
+
 
 #### Using references
 It is possible have 2 classes referencing each other, just make sure to set the @Reference annotation on one of them to avoid cycles while loading.
@@ -135,27 +162,6 @@ public Class Door extends Base {
 }
 ```
 
-#### Shallow Objects
-It is possible to enforce that an object will never get saved in its own collection.
-This can be common with nested objects that are fully saved in parent
-
-```
-@Kind(value = "door", shallow = true)
-public Class Door extends Base {
-    ....
-    
-    public Door(...) {
-        ....
-    }
-}
-```
-
-```
-    Door d = new Door(...)
-    ....
-    d.save();           // this will always fail because the object is defined as shallow
-```
-
 ### Options
 Use ***@Options*** annotation when defining a class to do further tweeking
 ***ignoreNull*** does store null fields into database when saving
@@ -175,20 +181,20 @@ public Class Door extends Base {
 
 
 #### Query
-You can query the database using the **Query** class, all mongodb filters are supported
+You can query the database using the **Query** class. All mongodb filters are supported, except for the `NOT` operator.
 
 ```
     MongoClient mongoClient = new MongoClient(....);
     Datastore store = new Datastore(mongoClient, ...);
     Datastore.setDefaultService(store);
 
-    Filter _gt = new Filter("name", Query.FilterOperator.EQUALS, "....");
-    Filter _ni = new Filter("type", Query.FilterOperator.NOT_IN, new int[]{1, 3});
-    Filter _eq = new Filter("door.type", Query.FilterOperator.EQUALS, 2);
-    Filter _rx = new Filter("door.tag, Query.FilterOperator.REGEX, "*alloy");
+    Filter _gt = query.createFilter("name", Query.FilterOperator.EQUALS, "....");
+    Filter _ni = query.createFilter("type", Query.FilterOperator.NOT_IN, new int[]{1, 3});
+    Filter _eq = query.createFilter("door.type", Query.FilterOperator.EQUALS, 2);
+    Filter _rx = query.createFilter("door.tag, Query.FilterOperator.REGEX, "*alloy");
     _rx.options("i");
 
-    Filter _and = new Filter(Query.FilterOperator.AND, _gt, _ni, _eq, _rx);
+    Filter _and = query.createFilter(Query.FilterOperator.AND, _gt, _ni, _eq, _rx);
 
     Query<Car> query = new Query<>(Car.class);
     query.setFilter(f);
@@ -201,7 +207,7 @@ You can query the database using the **Query** class, all mongodb filters are su
     }
 ```
 
-One can use Base objects in query, in this case it will be translated into its key
+Base objects can be used in queries, in this case it will be translated into their key
 ```
     Filter _eq = new Filter("door", Query.FilterOperator.EQUALS, door0);
 ```
@@ -220,5 +226,29 @@ public Class Car extends Base {
 }
 ```
 
+### Watch
+
+Use `Watch` to monitor real-time changes in a MongoDB collection, specifically inserts or updates.
+
+#### Usage Example:
+
+```java
+// Initialize the MongoDB datastore
+Datastore store = new Datastore(mongoClient, "myDatabase");
+Datastore.setDefaultService(store);
+
+// Create a watch to monitor insert and update operations on the User collection
+Watch<User> userWatch = new Watch<>(User.class, Watch.WatchMode.UPDATE_REPLACE);
+
+// Iterate through the change stream
+while (userWatch.hasNext()) {
+    User changedUser = userWatch.next();
+    System.out.println("Detected change in user: " + changedUser.name);
+}
+```
+
 #### Atomicty / Transactions
 Currently not implemented, will be included in future versions
+
+#### More Examples
+Additional examples are available in the test section.

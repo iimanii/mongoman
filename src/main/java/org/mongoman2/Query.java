@@ -143,7 +143,9 @@ public class Query<T extends Base> {
     public Query addProjection(String field) {
         if (!ignore.isEmpty())
             throw new MongomanException("Cannot add projection field when ignore fields are set.");
-
+        
+        Filter.validateFieldPath(field, clazz);
+        
         projection.add(field);
 
         computedProjection = null;
@@ -155,6 +157,8 @@ public class Query<T extends Base> {
         if (!projection.isEmpty())
             throw new MongomanException("Cannot add ignore field when projection fields are set.");
 
+        Filter.validateFieldPath(field, clazz);
+        
         ignore.add(field);
         
         computedProjection = null;

@@ -137,6 +137,10 @@ public class Filter {
     }
 
     protected void validateFieldPath(Class<?> currentClass) {
+        Filter.validateFieldPath(property, currentClass);
+    }
+    
+    protected static void validateFieldPath(String property, Class<?> currentClass) {
         String[] parts = property.split("\\."); // Split the field path by dot for nested fields
         boolean isFullSaved = true; // Top-level class (TestClass) fields are fully saved by default
         
